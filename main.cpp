@@ -15,6 +15,7 @@
 #include <iostream>
 #include <cmath>
 #include <fstream>
+#include <vector>
 
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
@@ -295,12 +296,16 @@ int main() {
   Shader myShader("learn.vs", "learn.fs");
   Shader defaultShader("default.vs", "default.fs");
 
-  glm::vec3 cubePositions[] = {
-      glm::vec3(0.0f, 0.0f, 0.0f),    glm::vec3(2.0f, 5.0f, -15.0f),
-      glm::vec3(-1.5f, -2.2f, -2.5f), glm::vec3(-3.8f, -2.0f, -12.3f),
-      glm::vec3(2.4f, -0.4f, -3.5f),  glm::vec3(-1.7f, 3.0f, -7.5f),
-      glm::vec3(1.3f, -2.0f, -2.5f),  glm::vec3(1.5f, 2.0f, -2.5f),
-      glm::vec3(1.5f, 0.2f, -1.5f),   glm::vec3(-1.3f, 1.0f, -1.5f)};
+  // Random generate boxes and lights' positions
+  // ------------------
+  std::vector<glm::vec3> cubePositions, pointLightPositions;
+  for (int i = 0; i < 1000; i++) {
+    cubePositions.push_back(
+        {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
+    if (i < 60)
+      pointLightPositions.push_back(
+          {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
+  }
 
   // Get needed VAOs
   // ------------------
@@ -309,7 +314,6 @@ int main() {
 
   // Light Settings
   // ------------------
-  glm::vec3 lightPos(1.2f, 1.0f, 2.0f);
   Shader lightSourceShader("light.vs", "light_source.fs");
   Shader directionLightShader("light.vs", "light_direction.fs");
   Shader pointLightShader("light.vs", "light_point.fs");
@@ -327,10 +331,6 @@ int main() {
     lastFrame = currentFrame;
 
     // Something else
-    lightPos.x = cos(glfwGetTime()) * 2.0;
-    lightPos.y = sin(glfwGetTime() * 3) * 2.0;
-    lightPos.z = sin(glfwGetTime()) * 2.0;
-
     glm::vec3 lightColor(1.f);
 
     glm::vec3 diffuseColor = lightColor * glm::vec3(0.5f);
@@ -341,7 +341,7 @@ int main() {
     process_input(window);
 
     // Rendering
-    glClearColor(0.2f, 0.3f, 0.3f, 1.0);
+    glClearColor(0.2f, 0.2f, 0.3f, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // Fix Camera Y Position
@@ -389,40 +389,43 @@ int main() {
     lightShader.setVec3("lights[1].specular", specularColor * 0.3f);
     lightShader.setInt("lights[1].type", 1);
     /// Point Lights
-    glm::vec3 pointLightPositions[] = {
-        glm::vec3(0.7f, 0.2f, 2.0f), glm::vec3(2.3f, -3.3f, -4.0f),
-        glm::vec3(-4.0f, 2.0f, -12.0f), glm::vec3(0.0f, 0.0f, -3.0f), lightPos};
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < pointLightPositions.size(); i++) {
+      glm::vec3 lightPosOffset;
+      lightPosOffset.x = cos(glfwGetTime() + i * 11.4) * 12.0;
+      lightPosOffset.y = sin(glfwGetTime() * 3 + i * 11.4) * 12.0;
+      lightPosOffset.z = sin(glfwGetTime() + i * 11.4) * 12.0;
+
       glm::vec3 lightColor(1.f);
       float time = glfwGetTime();
       lightColor.x = sin(time + i * 11.4) / 2 + 0.5;
       lightColor.y = cos(time + i * 11.4) / 2 + 0.5;
       lightColor.z = sin(time - i * 11.4) / 2 + 0.5;
-      lightColor += glm::vec3(0.33f);
+      lightColor *= 6.f;
 
       glm::vec3 diffuseColor = lightColor * glm::vec3(0.5f);
       glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f);
       glm::vec3 specularColor = lightColor * glm::vec3(1.f);
 
+      glm::vec3 pos = pointLightPositions[i] + lightPosOffset;
       lightShader.use();
       std::string light_prefix =
           std::string("lights[") + std::to_string(i + 2) + "].";
       auto elestr = [&](std::string element) { return light_prefix + element; };
-      lightShader.setVec3(elestr("position"), pointLightPositions[i]);
+      lightShader.setVec3(elestr("position"), pos);
       lightShader.setVec3(elestr("ambient"), ambientColor);
       lightShader.setVec3(elestr("diffuse"), diffuseColor);
       lightShader.setVec3(elestr("specular"), specularColor);
       lightShader.setFloat(elestr("constant"), 1.0f);
-      lightShader.setFloat(elestr("linear"), 0.045f);
-      lightShader.setFloat(elestr("quadratic"), 0.0075f);
+      lightShader.setFloat(elestr("linear"), 0.0045f);
+      lightShader.setFloat(elestr("quadratic"), 0.00075f);
       lightShader.setInt(elestr("type"), 0);
 
       lightSourceShader.use();
       glBindVertexArray(lightCubeVAO);
       transformation(lightSourceShader);
       model = glm::mat4(1.0f);
-      model = glm::translate(model, pointLightPositions[i]);
+      model = glm::translate(model, pos);
       model = glm::scale(model, glm::vec3(0.2f));
       lightSourceShader.setMat4("model", model);
       lightSourceShader.setVec3("lightColor", lightColor);
@@ -432,7 +435,7 @@ int main() {
     lightShader.use();
     // Draw boxes
     // -------------
-    for (unsigned int i = 0; i < 10; i++) {
+    for (unsigned int i = 0; i < cubePositions.size(); i++) {
       glm::mat4 model = glm::mat4(1.0f);
       model = glm::translate(model, cubePositions[i]);
       float angle = 20.0f * i;

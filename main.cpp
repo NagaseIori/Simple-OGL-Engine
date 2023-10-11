@@ -304,6 +304,15 @@ int main() {
     lightPos.y = sin(glfwGetTime());
     lightPos.z = sin(glfwGetTime()) * 2.0;
 
+    glm::vec3 lightColor;
+    lightColor.x = sin(glfwGetTime() * 2.0f);
+    lightColor.y = sin(glfwGetTime() * 0.7f);
+    lightColor.z = sin(glfwGetTime() * 1.3f);
+      
+    glm::vec3 diffuseColor = lightColor   * glm::vec3(0.5f); 
+    glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f); 
+    glm::vec3 specularColor = lightColor * glm::vec3(1.f); 
+
     // Pre-rendering
     process_input(window);
 
@@ -328,14 +337,21 @@ int main() {
     model = glm::translate(model, lightPos);
     model = glm::scale(model, glm::vec3(0.2f));
     lightSourceShader.setMat4("model", model);
+    lightSourceShader.setVec3("lightColor", lightColor);
     glDrawArrays(GL_TRIANGLES, 0, 36);
 
     lightShader.use();
     transformation(lightShader);
     lightShader.setVec3("objectColor", glm::vec3(1.0f, 0.5f, 0.31f));
-    lightShader.setVec3("lightColor", glm::vec3(1.0f, 1.0f, 1.0f));
-    lightShader.setVec3("lightPos", lightPos);
+    lightShader.setVec3("light.position", lightPos);
     lightShader.setVec3("viewPos", mainCam.Position);
+    lightShader.setVec3("material.ambient", 1.0f, 0.5f, 0.31f);
+    lightShader.setVec3("material.diffuse", 1.0f, 0.5f, 0.31f);
+    lightShader.setVec3("material.specular", 0.5f, 0.5f, 0.5f);
+    lightShader.setFloat("material.shininess", 32.0f);
+    lightShader.setVec3("light.ambient",  ambientColor);
+    lightShader.setVec3("light.diffuse",  diffuseColor); // darken diffuse light a bit
+    lightShader.setVec3("light.specular", specularColor); 
     glDrawArrays(GL_TRIANGLES, 0, 36);
 
     // Post-rendering

@@ -286,7 +286,7 @@ int main() {
     return -1;
   }
 
-  glEnable(GL_MULTISAMPLE);  
+  glEnable(GL_MULTISAMPLE);
   glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
   glfwSetScrollCallback(window, scroll_callback);

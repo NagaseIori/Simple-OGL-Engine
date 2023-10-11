@@ -244,7 +244,8 @@ auto getLightVAO() {
   glEnableVertexAttribArray(2);
 
   unsigned int diffuseMap = load_texture("container2.png", GL_RGBA);
-  unsigned int specularMap = load_texture("lighting_maps_specular_color.png", GL_RGBA);
+  unsigned int specularMap =
+      load_texture("lighting_maps_specular_color.png", GL_RGBA);
 
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, diffuseMap);
@@ -304,7 +305,9 @@ int main() {
   // ------------------
   glm::vec3 lightPos(1.2f, 1.0f, 2.0f);
   Shader lightSourceShader("light.vs", "light_source.fs");
-  Shader lightShader("light.vs", "light.fs");
+  Shader directionLightShader("light.vs", "light_direction.fs");
+  Shader pointLightShader("light.vs", "light_point.fs");
+  Shader spotLightShader("light.vs", "light_spot.fs");
   unsigned int lightCubeVAO = getLightVAO();
 
   // Rendering Loop
@@ -318,10 +321,10 @@ int main() {
 
     // Something else
     lightPos.x = cos(glfwGetTime()) * 2.0;
-    lightPos.y = sin(glfwGetTime()*3) * 2.0;
+    lightPos.y = sin(glfwGetTime() * 3) * 2.0;
     lightPos.z = sin(glfwGetTime()) * 2.0;
 
-    glm::vec3 lightColor(1.5f);
+    glm::vec3 lightColor(3.f);
     // lightColor.x = sin(glfwGetTime() * 2.0f);
     // lightColor.y = sin(glfwGetTime() * 0.7f);
     // lightColor.z = sin(glfwGetTime() * 1.3f);
@@ -358,10 +361,15 @@ int main() {
     lightSourceShader.setVec3("lightColor", lightColor);
     glDrawArrays(GL_TRIANGLES, 0, 36);
 
+    auto &lightShader = spotLightShader;
     lightShader.use();
     transformation(lightShader);
+    glBindVertexArray(lightCubeVAO);
     lightShader.setVec3("objectColor", glm::vec3(1.0f, 0.5f, 0.31f));
-    lightShader.setVec3("light.position", lightPos);
+    lightShader.setVec3("light.position", mainCam.Position);
+    lightShader.setVec3("light.direction", mainCam.Front);
+    lightShader.setFloat("light.cutOff", glm::cos(glm::radians(12.5f)));
+    lightShader.setFloat("light.outerCutOff", glm::cos(glm::radians(15.f)));
     lightShader.setVec3("viewPos", mainCam.Position);
     lightShader.setInt("material.diffuse", 0);
     lightShader.setInt("material.specular", 1);
@@ -370,7 +378,19 @@ int main() {
     lightShader.setVec3("light.diffuse",
                         diffuseColor); // darken diffuse light a bit
     lightShader.setVec3("light.specular", specularColor);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
+    lightShader.setFloat("light.constant", 1.0f);
+    lightShader.setFloat("light.linear", 0.045f);
+    lightShader.setFloat("light.quadratic", 0.0075f);
+    for (unsigned int i = 0; i < 10; i++) {
+      glm::mat4 model = glm::mat4(1.0f);
+      model = glm::translate(model, cubePositions[i]);
+      float angle = 20.0f * i;
+      model =
+          glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
+      lightShader.setMat4("model", model);
+
+      glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
 
     // Post-rendering
     glBindVertexArray(0);

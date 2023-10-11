@@ -98,6 +98,14 @@ public:
   void setVec3(const std::string &name, float x, float y, float z) const {
     setVec3(name, glm::vec3(x, y, z));
   }
+  // ------------------------------------------------------------------------
+  void setVec2(const std::string &name, glm::vec2 value) const {
+    glUniform2fv(glGetUniformLocation(ID, name.c_str()), 1,
+                 glm::value_ptr(value));
+  }
+  void setVec2(const std::string &name, float x, float y) const {
+    setVec2(name, glm::vec2(x, y));
+  }
 
 private:
   // utility function for checking shader compilation/linking errors.

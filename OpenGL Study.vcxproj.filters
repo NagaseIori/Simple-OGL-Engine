@@ -26,6 +26,9 @@
     <None Include=".clang-format">
       <Filter>资源文件</Filter>
     </None>
+    <None Include="assimp-vc143-mt.dll">
+      <Filter>资源文件</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="shader_s.h">

@@ -20,9 +20,9 @@ enum Camera_Movement {
 // Default camera values
 const float YAW         = -90.0f;
 const float PITCH       =  0.0f;
-const float SPEED       =  2.5f;
+const float SPEED       =  10.f;
 const float SENSITIVITY =  0.1f;
-const float ZOOM        =  45.0f;
+const float ZOOM        =  90.0f;
 
 
 // An abstract camera class that processes input and calculates the corresponding Euler Angles, Vectors and Matrices for use in OpenGL
@@ -107,7 +107,7 @@ public:
     // processes input received from a mouse scroll-wheel event. Only requires input on the vertical wheel-axis
     void ProcessMouseScroll(float yoffset)
     {
-        Zoom -= (float)yoffset;
+        Zoom -= (float)yoffset * 10.0f;
         if (Zoom < 1.0f)
             Zoom = 1.0f;
         if (Zoom > FOV_UPBOUND)

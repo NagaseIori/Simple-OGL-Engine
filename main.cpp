@@ -1,6 +1,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include "shader_s.h"
+#include "model.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -136,6 +137,7 @@ unsigned int getAxisVAO() {
                         (void *)(3 * sizeof(float)));
   glEnableVertexAttribArray(0);
   glEnableVertexAttribArray(1);
+  glBindVertexArray(0);
   return VAO;
 }
 
@@ -191,7 +193,7 @@ unsigned int getBoxVAO() {
   glActiveTexture(GL_TEXTURE1);
   glBindTexture(GL_TEXTURE_2D, texture2);
   glEnable(GL_DEPTH_TEST);
-
+  glBindVertexArray(0);
   return VAO;
 }
 
@@ -262,6 +264,181 @@ auto getLightVAO() {
   return VAO;
 }
 
+void drawAxis(Shader &shader, unsigned int AxisVAO) {
+  shader.use();
+  transformation(shader);
+  glBindVertexArray(AxisVAO);
+  glDrawArrays(GL_LINES, 0, 6);
+}
+
+void Scene1(GLFWwindow *window) {
+  // Shaders compilation
+  // ------------------
+  Shader myShader("learn.vs", "learn.fs");
+  Shader defaultShader("default.vs", "default.fs");
+
+  // Random generate boxes and lights' positions
+  // ------------------
+  std::vector<glm::vec3> cubePositions, pointLightPositions;
+  cubePositions.push_back({0.f, 0.f, 0.f});
+  for (int i = 0; i < 20; i++) {
+    cubePositions.push_back(
+        {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
+  }
+  for (int i = 0; i < 60; i++)
+    pointLightPositions.push_back(
+        {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
+
+  // Get needed VAOs
+  // ------------------
+  unsigned int AxisVAO = getAxisVAO();
+  unsigned int BoxVAO = getBoxVAO();
+
+  // Light Settings
+  // ------------------
+  Shader lightSourceShader("light.vs", "light_source.fs");
+  Shader directionLightShader("light.vs", "light_direction.fs");
+  Shader pointLightShader("light.vs", "light_point.fs");
+  Shader spotLightShader("light.vs", "light_spot.fs");
+  Shader lightShader("light.vs", "light.fs");
+  unsigned int lightCubeVAO = getLightVAO();
+
+  // Load Models
+  // ------------------
+  Model modelBag("model/backpack/backpack.obj");
+  Model modelGirl("model/girl/final.obj");
+
+  // Rendering Loop
+  // ------------------
+  glm::mat4 model(1.0f);
+  while (!glfwWindowShouldClose(window)) {
+    // Time Update
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
+
+    // Something else
+    glm::vec3 lightColor(1.f);
+
+    glm::vec3 diffuseColor = lightColor * glm::vec3(0.5f);
+    glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f);
+    glm::vec3 specularColor = lightColor * glm::vec3(1.f);
+
+    // Pre-rendering
+    process_input(window);
+
+    // Rendering
+    glClearColor(0.2f, 0.2f, 0.3f, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Fix Camera Y Position
+    // mainCam.Position.y = 1;
+
+    // Draw Axis
+    drawAxis(defaultShader, AxisVAO);
+
+    // Draw my things
+    Shader lightShader("light.vs", "light_v2.fs");
+
+    lightShader.use();
+    transformation(lightShader);
+    glBindVertexArray(lightCubeVAO);
+    // Setup Basics
+    lightShader.setVec3("viewPos", mainCam.Position);
+    lightShader.setFloat("material.shininess", 2.0f);
+
+    // Setup Lights
+    // -------------
+    lightShader.setInt("lightCount", 62);
+    /// Spot Light
+    lightShader.setVec3("lights[0].position", mainCam.Position);
+    lightShader.setVec3("lights[0].direction", mainCam.Front);
+    lightShader.setFloat("lights[0].cutOff", glm::cos(glm::radians(30.f)));
+    lightShader.setFloat("lights[0].outerCutOff", glm::cos(glm::radians(35.f)));
+    lightShader.setVec3("lights[0].ambient",
+                        ambientColor * 2.f * spotLightEnabled);
+    lightShader.setVec3("lights[0].diffuse",
+                        diffuseColor * 2.f * spotLightEnabled);
+    lightShader.setVec3("lights[0].specular",
+                        specularColor * 2.f * spotLightEnabled);
+    lightShader.setFloat("lights[0].constant", 1.0f);
+    lightShader.setFloat("lights[0].linear", 0.045f);
+    lightShader.setFloat("lights[0].quadratic", 0.0075f);
+    lightShader.setInt("lights[0].type", 2);
+    /// Direction Light
+    lightShader.setVec3("lights[1].direction", 0, -1.0f, 0);
+    lightShader.setVec3("lights[1].ambient", ambientColor * .0f);
+    lightShader.setVec3("lights[1].diffuse", diffuseColor * .4f);
+    lightShader.setVec3("lights[1].specular", specularColor * .0f);
+    lightShader.setInt("lights[1].type", 1);
+
+    /// Point Lights
+
+    for (int i = 0; i < pointLightPositions.size(); i++) {
+      glm::vec3 lightPosOffset;
+      lightPosOffset.x = cos(glfwGetTime() + i * 11.4) * 12.0;
+      lightPosOffset.y = sin(glfwGetTime() * 3 + i * 11.4) * 12.0;
+      lightPosOffset.z = sin(glfwGetTime() + i * 11.4) * 12.0;
+
+      glm::vec3 lightColor(1.f);
+      float time = glfwGetTime();
+      lightColor.x = sin(time + i * 11.4) / 2 + 0.5;
+      lightColor.y = cos(time + i * 11.4) / 2 + 0.5;
+      lightColor.z = sin(time - i * 11.4) / 2 + 0.5;
+      lightColor *= 2.f;
+
+      glm::vec3 diffuseColor = lightColor * glm::vec3(0.5f);
+      glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f);
+      glm::vec3 specularColor = lightColor * glm::vec3(1.f);
+
+      glm::vec3 pos = pointLightPositions[i] + lightPosOffset;
+      lightShader.use();
+      std::string light_prefix =
+          std::string("lights[") + std::to_string(i + 2) + "].";
+      auto elestr = [&](std::string element) { return light_prefix + element; };
+      lightShader.setVec3(elestr("position"), pos);
+      lightShader.setVec3(elestr("ambient"), ambientColor);
+      lightShader.setVec3(elestr("diffuse"), diffuseColor);
+      lightShader.setVec3(elestr("specular"), specularColor);
+      lightShader.setFloat(elestr("constant"), 1.0f);
+      lightShader.setFloat(elestr("linear"), 0.09f);
+      lightShader.setFloat(elestr("quadratic"), 0.032f);
+      lightShader.setInt(elestr("type"), 0);
+
+      lightSourceShader.use();
+      glBindVertexArray(lightCubeVAO);
+      transformation(lightSourceShader);
+      model = glm::mat4(1.0f);
+      model = glm::translate(model, pos);
+      model = glm::scale(model, glm::vec3(0.2f));
+      lightSourceShader.setMat4("model", model);
+      lightSourceShader.setVec3("lightColor", lightColor);
+      glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+
+    lightShader.use();
+    // Draw boxes
+    // -------------
+    for (unsigned int i = 0; i < cubePositions.size(); i++) {
+      glm::mat4 model = glm::mat4(1.0f);
+      model = glm::translate(model, cubePositions[i]);
+      float angle = 20.0f * i;
+      model = glm::rotate(model, float(glfwGetTime() + i * 0.5),
+                          glm::vec3(1.0f, 0.3f, 0.5f));
+      // model = glm::scale(model, glm::vec3(4.f));
+      lightShader.setMat4("model", model);
+
+      modelBag.Draw(lightShader);
+      // modelMiku.Draw(lightShader);
+    }
+
+    // Post-rendering
+    glBindVertexArray(0);
+    glfwSwapBuffers(window);
+    glfwPollEvents();
+  }
+}
+
 int main() {
   // Init
   // ------------------
@@ -293,166 +470,11 @@ int main() {
   glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetCursorPosCallback(window, mouse_callback);
 
-  // Shaders compilation
-  // ------------------
-  Shader myShader("learn.vs", "learn.fs");
-  Shader defaultShader("default.vs", "default.fs");
+  // Shader advLightShader("light.vs", "light_v2.fs");
 
-  // Random generate boxes and lights' positions
-  // ------------------
-  std::vector<glm::vec3> cubePositions, pointLightPositions;
-  for (int i = 0; i < 1000; i++) {
-    cubePositions.push_back(
-        {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
-    if (i < 60)
-      pointLightPositions.push_back(
-          {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
-  }
-
-  // Get needed VAOs
-  // ------------------
-  unsigned int AxisVAO = getAxisVAO();
-  unsigned int BoxVAO = getBoxVAO();
-
-  // Light Settings
-  // ------------------
-  Shader lightSourceShader("light.vs", "light_source.fs");
-  Shader directionLightShader("light.vs", "light_direction.fs");
-  Shader pointLightShader("light.vs", "light_point.fs");
-  Shader spotLightShader("light.vs", "light_spot.fs");
-  Shader lightShader("light.vs", "light.fs");
-  unsigned int lightCubeVAO = getLightVAO();
-
-  // Rendering Loop
-  // ------------------
-  glm::mat4 model(1.0f);
-  while (!glfwWindowShouldClose(window)) {
-    // Time Update
-    float currentFrame = glfwGetTime();
-    deltaTime = currentFrame - lastFrame;
-    lastFrame = currentFrame;
-
-    // Something else
-    glm::vec3 lightColor(1.f);
-
-    glm::vec3 diffuseColor = lightColor * glm::vec3(0.5f);
-    glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f);
-    glm::vec3 specularColor = lightColor * glm::vec3(1.f);
-
-    // Pre-rendering
-    process_input(window);
-
-    // Rendering
-    glClearColor(0.2f, 0.2f, 0.3f, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    // Fix Camera Y Position
-    // mainCam.Position.y = 1;
-
-    // Draw Axis
-    defaultShader.use();
-    transformation(defaultShader);
-    glBindVertexArray(AxisVAO);
-    glDrawArrays(GL_LINES, 0, 6);
-
-    // Draw my things
-    lightShader.use();
-    transformation(lightShader);
-    glBindVertexArray(lightCubeVAO);
-    // Setup Material
-    lightShader.setVec3("objectColor", glm::vec3(1.0f, 0.5f, 0.31f));
-    lightShader.setVec3("viewPos", mainCam.Position);
-    lightShader.setInt("material.diffuse", 0);
-    lightShader.setInt("material.specular", 1);
-    lightShader.setFloat("material.shininess", 32.0f);
-
-    // Setup Lights
-    // -------------
-    lightShader.setInt("lightCount", 7);
-    /// Spot Light
-    lightShader.setVec3("lights[0].position", mainCam.Position);
-    lightShader.setVec3("lights[0].direction", mainCam.Front);
-    lightShader.setFloat("lights[0].cutOff", glm::cos(glm::radians(12.5f)));
-    lightShader.setFloat("lights[0].outerCutOff", glm::cos(glm::radians(15.f)));
-    lightShader.setVec3("lights[0].ambient",
-                        ambientColor * 2.f * spotLightEnabled);
-    lightShader.setVec3("lights[0].diffuse",
-                        diffuseColor * 2.f * spotLightEnabled);
-    lightShader.setVec3("lights[0].specular",
-                        specularColor * 2.f * spotLightEnabled);
-    lightShader.setFloat("lights[0].constant", 1.0f);
-    lightShader.setFloat("lights[0].linear", 0.045f);
-    lightShader.setFloat("lights[0].quadratic", 0.0075f);
-    lightShader.setInt("lights[0].type", 2);
-    /// Direction Light
-    lightShader.setVec3("lights[1].direction", -0.2f, -1.0f, -0.3f);
-    lightShader.setVec3("lights[1].ambient", ambientColor * 0.3f);
-    lightShader.setVec3("lights[1].diffuse", diffuseColor * 0.3f);
-    lightShader.setVec3("lights[1].specular", specularColor * 0.3f);
-    lightShader.setInt("lights[1].type", 1);
-    /// Point Lights
-
-    for (int i = 0; i < pointLightPositions.size(); i++) {
-      glm::vec3 lightPosOffset;
-      lightPosOffset.x = cos(glfwGetTime() + i * 11.4) * 12.0;
-      lightPosOffset.y = sin(glfwGetTime() * 3 + i * 11.4) * 12.0;
-      lightPosOffset.z = sin(glfwGetTime() + i * 11.4) * 12.0;
-
-      glm::vec3 lightColor(1.f);
-      float time = glfwGetTime();
-      lightColor.x = sin(time + i * 11.4) / 2 + 0.5;
-      lightColor.y = cos(time + i * 11.4) / 2 + 0.5;
-      lightColor.z = sin(time - i * 11.4) / 2 + 0.5;
-      lightColor *= 6.f;
-
-      glm::vec3 diffuseColor = lightColor * glm::vec3(0.5f);
-      glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f);
-      glm::vec3 specularColor = lightColor * glm::vec3(1.f);
-
-      glm::vec3 pos = pointLightPositions[i] + lightPosOffset;
-      lightShader.use();
-      std::string light_prefix =
-          std::string("lights[") + std::to_string(i + 2) + "].";
-      auto elestr = [&](std::string element) { return light_prefix + element; };
-      lightShader.setVec3(elestr("position"), pos);
-      lightShader.setVec3(elestr("ambient"), ambientColor);
-      lightShader.setVec3(elestr("diffuse"), diffuseColor);
-      lightShader.setVec3(elestr("specular"), specularColor);
-      lightShader.setFloat(elestr("constant"), 1.0f);
-      lightShader.setFloat(elestr("linear"), 0.0045f);
-      lightShader.setFloat(elestr("quadratic"), 0.00075f);
-      lightShader.setInt(elestr("type"), 0);
-
-      lightSourceShader.use();
-      glBindVertexArray(lightCubeVAO);
-      transformation(lightSourceShader);
-      model = glm::mat4(1.0f);
-      model = glm::translate(model, pos);
-      model = glm::scale(model, glm::vec3(0.2f));
-      lightSourceShader.setMat4("model", model);
-      lightSourceShader.setVec3("lightColor", lightColor);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
-    }
-
-    lightShader.use();
-    // Draw boxes
-    // -------------
-    for (unsigned int i = 0; i < cubePositions.size(); i++) {
-      glm::mat4 model = glm::mat4(1.0f);
-      model = glm::translate(model, cubePositions[i]);
-      float angle = 20.0f * i;
-      model = glm::rotate(model, float(glfwGetTime() + i * 0.5),
-                          glm::vec3(1.0f, 0.3f, 0.5f));
-      lightShader.setMat4("model", model);
-
-      glDrawArrays(GL_TRIANGLES, 0, 36);
-    }
-
-    // Post-rendering
-    glBindVertexArray(0);
-    glfwSwapBuffers(window);
-    glfwPollEvents();
-  }
+  // Go to the target scene
+  // --------------
+  Scene1(window);
 
   glfwTerminate();
   return 0;

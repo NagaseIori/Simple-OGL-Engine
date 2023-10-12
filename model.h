@@ -49,6 +49,7 @@ private:
   // loads a model with supported ASSIMP extensions from file and stores the
   // resulting meshes in the meshes vector.
   void loadModel(string const &path) {
+    cout << "Start loading model from: " + path << endl;
     // read file via ASSIMP
     Assimp::Importer importer;
     const aiScene *scene = importer.ReadFile(
@@ -196,7 +197,8 @@ private:
       }
       if (!skip) { // if texture hasn't been loaded already, load it
         Texture texture;
-        texture.id = TextureFromFile(str.C_Str(), this->directory);
+        texture.id = TextureFromFile(str.C_Str(), this->directory,
+                                     typeName == "texture_diffuse");
         texture.type = typeName;
         texture.path = str.C_Str();
         textures.push_back(texture);
@@ -224,16 +226,20 @@ unsigned int TextureFromFile(const char *path, const string &directory,
   unsigned char *data =
       stbi_load(filename.c_str(), &width, &height, &nrComponents, 0);
   if (data) {
-    GLenum format;
+    GLenum format_from, format_to;
     if (nrComponents == 1)
-      format = GL_RED;
+      format_from = format_to = GL_RED;
     else if (nrComponents == 3)
-      format = GL_RGB;
+      format_from = GL_RGB, format_to = GL_SRGB;
     else if (nrComponents == 4)
-      format = GL_RGBA;
+      format_from = GL_RGBA, format_to = GL_SRGB_ALPHA;
+
+    if (!gamma) {
+      format_to = format_from;
+    }
 
     glBindTexture(GL_TEXTURE_2D, textureID);
-    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format,
+    glTexImage2D(GL_TEXTURE_2D, 0, format_to, width, height, 0, format_from,
                  GL_UNSIGNED_BYTE, data);
     glGenerateMipmap(GL_TEXTURE_2D);
 

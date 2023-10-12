@@ -20,7 +20,7 @@
 
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
-#define FAR_PLANE 1000.f
+#define FAR_PLANE 1000000.f
 
 float visibility = 0.2;
 float camera_height = 3.0;
@@ -29,7 +29,7 @@ float lastFrame = 0.0f; // Time of last frame
 float lastX = WINDOW_WIDTH / 2., lastY = WINDOW_HEIGHT / 2.;
 float spotLightEnabled = 1.0;
 
-Camera mainCam(3.f, 3.f, 3.f, 0.f, 1.f, 0.f, -135.f, -45.f);
+Camera mainCam(30.f, 30.f, 3.f, 0.f, 1.f, 0.f, -135.f, -45.f);
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
   glViewport(0, 0, width, height);
@@ -44,15 +44,17 @@ void process_input(GLFWwindow *window) {
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
     glfwSetWindowShouldClose(window, true);
   }
-  const float cameraSpeed = 7.5f * deltaTime;
+  float cameraSpeed = deltaTime;
+  if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT))
+    cameraSpeed *= 5;
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-    mainCam.ProcessKeyboard(Camera_Movement::FORWARD, deltaTime);
+    mainCam.ProcessKeyboard(Camera_Movement::FORWARD, cameraSpeed);
   if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-    mainCam.ProcessKeyboard(Camera_Movement::BACKWARD, deltaTime);
+    mainCam.ProcessKeyboard(Camera_Movement::BACKWARD, cameraSpeed);
   if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-    mainCam.ProcessKeyboard(Camera_Movement::LEFT, deltaTime);
+    mainCam.ProcessKeyboard(Camera_Movement::LEFT, cameraSpeed);
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-    mainCam.ProcessKeyboard(Camera_Movement::RIGHT, deltaTime);
+    mainCam.ProcessKeyboard(Camera_Movement::RIGHT, cameraSpeed);
   if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
     spotLightEnabled = 1.0;
   else {
@@ -285,7 +287,7 @@ void Scene1(GLFWwindow *window) {
     cubePositions.push_back(
         {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
   }
-  for (int i = 0; i < 60; i++)
+  for (int i = 0; i < 18; i++)
     pointLightPositions.push_back(
         {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
 
@@ -306,7 +308,8 @@ void Scene1(GLFWwindow *window) {
   // Load Models
   // ------------------
   Model modelBag("model/backpack/backpack.obj");
-  Model modelGirl("model/girl/final.obj");
+  // Model modelGirl("model/girl/girl.usdc");
+  Model modelSponza("model/sponza/sponza.obj");
 
   // Rendering Loop
   // ------------------
@@ -349,7 +352,7 @@ void Scene1(GLFWwindow *window) {
 
     // Setup Lights
     // -------------
-    lightShader.setInt("lightCount", 62);
+    lightShader.setInt("lightCount", pointLightPositions.size() + 2);
     /// Spot Light
     lightShader.setVec3("lights[0].position", mainCam.Position);
     lightShader.setVec3("lights[0].direction", mainCam.Front);
@@ -366,8 +369,13 @@ void Scene1(GLFWwindow *window) {
     lightShader.setFloat("lights[0].quadratic", 0.0075f);
     lightShader.setInt("lights[0].type", 2);
     /// Direction Light
-    lightShader.setVec3("lights[1].direction", 0, -1.0f, 0);
-    lightShader.setVec3("lights[1].ambient", ambientColor * .0f);
+    lightColor = glm::vec3(1.f, 0.3f, 0.f);
+
+    diffuseColor = lightColor * glm::vec3(0.5f);
+    ambientColor = diffuseColor * glm::vec3(0.2f);
+    specularColor = lightColor * glm::vec3(1.f);
+    lightShader.setVec3("lights[1].direction", -0.5, -1.0f, -0.5);
+    lightShader.setVec3("lights[1].ambient", ambientColor * .1f);
     lightShader.setVec3("lights[1].diffuse", diffuseColor * .4f);
     lightShader.setVec3("lights[1].specular", specularColor * .0f);
     lightShader.setInt("lights[1].type", 1);
@@ -432,6 +440,18 @@ void Scene1(GLFWwindow *window) {
       // modelMiku.Draw(lightShader);
     }
 
+    // Draw Sponza
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.f, -50.f, 0.f));
+    model = glm::scale(model, glm::vec3(0.1f));
+    lightShader.setMat4("model", model);
+    modelSponza.Draw(lightShader);
+
+    // Draw Girl
+    // lightShader.setMat4("model",
+    //                     glm::scale(glm::mat4(1.f), glm::vec3(0.05f)));
+    // modelGirl.Draw(lightShader);
+
     // Post-rendering
     glBindVertexArray(0);
     glfwSwapBuffers(window);
@@ -463,12 +483,18 @@ int main() {
     return -1;
   }
 
-  glEnable(GL_MULTISAMPLE);
+  // glEnable(GL_MULTISAMPLE);
   glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
   glfwSetScrollCallback(window, scroll_callback);
   glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetCursorPosCallback(window, mouse_callback);
+  glEnable(GL_FRAMEBUFFER_SRGB); // Gamma Correction for now
+
+  // Enable Blending
+  // --------------
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   // Shader advLightShader("light.vs", "light_v2.fs");
 

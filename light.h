@@ -9,6 +9,8 @@
 #include <vector>
 using namespace std;
 
+unsigned int getLightVAO();
+
 enum LightType { POINT, DIRECTIONAL, SPOTLIGHT };
 const unsigned int SHADOW_WIDTH = 8192, SHADOW_HEIGHT = 8192;
 
@@ -159,7 +161,8 @@ private:
 
 class Lights {
 private:
-  Shader depthShader, lightShader;
+  Shader depthShader, lightShader, lightSourceShader;
+  unsigned int lightVAO;
 
 public:
   vector<Light> lights;
@@ -172,7 +175,8 @@ public:
     for (auto &light : lights)
       light.updateShadowMap(depthShader, renderScene);
   }
-  template <typename F> void render(glm::vec3 viewPos, F renderScene) {
+  template <typename F>
+  void render(glm::vec3 viewPos, F renderScene, void transformation(Shader &)) {
     // Setup shadowmap textures & shader
     lightShader.use();
     lightShader.setVec3("viewPos", viewPos);
@@ -186,11 +190,25 @@ public:
 
     // Render
     renderScene(lightShader);
+
+    // Render point light cubes
+    for (auto &light : lights)
+      if (light.type == POINT) {
+        lightSourceShader.use();
+        glBindVertexArray(lightVAO);
+        transformation(lightSourceShader);
+        lightSourceShader.setMat4("model", light.model);
+        lightSourceShader.setVec3("lightColor", light.color);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+      }
   }
 
   Lights()
       : depthShader("simpleDepthShader.vs", "simpleDepthShader.fs"),
-        lightShader("light.vs", "light_v2.fs") {}
+        lightShader("light.vs", "light_v2.fs"),
+        lightSourceShader("light.vs", "light_source.fs") {
+    lightVAO = getLightVAO();
+  }
 };
 
 #endif

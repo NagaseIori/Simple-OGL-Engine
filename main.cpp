@@ -95,32 +95,6 @@ void transformation(Shader &shd) {
   shd.setMat4("projection", projection);
 }
 
-unsigned int load_texture(const std::string image, unsigned int type) {
-  unsigned int texture;
-  glGenTextures(1, &texture);
-  glBindTexture(GL_TEXTURE_2D, texture);
-  // set the texture wrapping/filtering options (on the currently bound texture
-  // object)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                  GL_LINEAR_MIPMAP_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  // load and generate the texture
-  int width, height, nrChannels;
-  unsigned char *data =
-      stbi_load(image.c_str(), &width, &height, &nrChannels, 0);
-  if (data) {
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, type,
-                 GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
-  } else {
-    std::cout << "Failed to load texture" << std::endl;
-  }
-  stbi_image_free(data);
-  return texture;
-}
-
 #define AXIS_INF 10000.0f
 unsigned int getAxisVAO() {
   float vertices[] = {-AXIS_INF, 0.f,       0.f,       1.f, 0.f, 0.f,
@@ -168,104 +142,6 @@ const float boxVertices[] = {
     -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f, 0.5f,  0.5f,  -0.5f, 1.0f, 1.0f,
     0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
     -0.5f, 0.5f,  0.5f,  0.0f, 0.0f, -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f};
-
-unsigned int getBoxVAO() {
-  auto &vertices = boxVertices;
-  // VBO & VAO Setting up
-  unsigned int VBO, VAO, EBO;
-  glGenBuffers(1, &EBO);
-  glGenVertexArrays(1, &VAO);
-  glGenBuffers(1, &VBO);
-
-  glBindVertexArray(VAO);
-
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)0);
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
-                        (void *)(3 * sizeof(float)));
-  glEnableVertexAttribArray(2);
-
-  // Texture loading
-  unsigned int texture1 = load_texture("container.jpg", GL_RGB);
-  unsigned int texture2 = load_texture("awesomeface.png", GL_RGBA);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, texture1);
-  glActiveTexture(GL_TEXTURE1);
-  glBindTexture(GL_TEXTURE_2D, texture2);
-  glEnable(GL_DEPTH_TEST);
-  glBindVertexArray(0);
-  return VAO;
-}
-
-auto getLightVAO() {
-  float vertices[] = {
-      -0.5f, -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f,  0.0f,  0.5f,  -0.5f,
-      -0.5f, 0.0f,  0.0f,  -1.0f, 1.0f,  0.0f,  0.5f,  0.5f,  -0.5f, 0.0f,
-      0.0f,  -1.0f, 1.0f,  1.0f,  0.5f,  0.5f,  -0.5f, 0.0f,  0.0f,  -1.0f,
-      1.0f,  1.0f,  -0.5f, 0.5f,  -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f,  1.0f,
-      -0.5f, -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f,  0.0f,
-
-      -0.5f, -0.5f, 0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,  0.5f,  -0.5f,
-      0.5f,  0.0f,  0.0f,  1.0f,  1.0f,  0.0f,  0.5f,  0.5f,  0.5f,  0.0f,
-      0.0f,  1.0f,  1.0f,  1.0f,  0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
-      1.0f,  1.0f,  -0.5f, 0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  1.0f,
-      -0.5f, -0.5f, 0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,
-
-      -0.5f, 0.5f,  0.5f,  -1.0f, 0.0f,  0.0f,  1.0f,  0.0f,  -0.5f, 0.5f,
-      -0.5f, -1.0f, 0.0f,  0.0f,  1.0f,  1.0f,  -0.5f, -0.5f, -0.5f, -1.0f,
-      0.0f,  0.0f,  0.0f,  1.0f,  -0.5f, -0.5f, -0.5f, -1.0f, 0.0f,  0.0f,
-      0.0f,  1.0f,  -0.5f, -0.5f, 0.5f,  -1.0f, 0.0f,  0.0f,  0.0f,  0.0f,
-      -0.5f, 0.5f,  0.5f,  -1.0f, 0.0f,  0.0f,  1.0f,  0.0f,
-
-      0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f,  0.0f,  0.5f,  0.5f,
-      -0.5f, 1.0f,  0.0f,  0.0f,  1.0f,  1.0f,  0.5f,  -0.5f, -0.5f, 1.0f,
-      0.0f,  0.0f,  0.0f,  1.0f,  0.5f,  -0.5f, -0.5f, 1.0f,  0.0f,  0.0f,
-      0.0f,  1.0f,  0.5f,  -0.5f, 0.5f,  1.0f,  0.0f,  0.0f,  0.0f,  0.0f,
-      0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f,  0.0f,
-
-      -0.5f, -0.5f, -0.5f, 0.0f,  -1.0f, 0.0f,  0.0f,  1.0f,  0.5f,  -0.5f,
-      -0.5f, 0.0f,  -1.0f, 0.0f,  1.0f,  1.0f,  0.5f,  -0.5f, 0.5f,  0.0f,
-      -1.0f, 0.0f,  1.0f,  0.0f,  0.5f,  -0.5f, 0.5f,  0.0f,  -1.0f, 0.0f,
-      1.0f,  0.0f,  -0.5f, -0.5f, 0.5f,  0.0f,  -1.0f, 0.0f,  0.0f,  0.0f,
-      -0.5f, -0.5f, -0.5f, 0.0f,  -1.0f, 0.0f,  0.0f,  1.0f,
-
-      -0.5f, 0.5f,  -0.5f, 0.0f,  1.0f,  0.0f,  0.0f,  1.0f,  0.5f,  0.5f,
-      -0.5f, 0.0f,  1.0f,  0.0f,  1.0f,  1.0f,  0.5f,  0.5f,  0.5f,  0.0f,
-      1.0f,  0.0f,  1.0f,  0.0f,  0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-      1.0f,  0.0f,  -0.5f, 0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f,  0.0f,
-      -0.5f, 0.5f,  -0.5f, 0.0f,  1.0f,  0.0f,  0.0f,  1.0f};
-  unsigned int VBO, VAO;
-  glGenVertexArrays(1, &VAO);
-  glGenBuffers(1, &VBO);
-
-  glBindVertexArray(VAO);
-
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        (void *)(3 * sizeof(float)));
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        (void *)(6 * sizeof(float)));
-  glEnableVertexAttribArray(2);
-
-  unsigned int diffuseMap = load_texture("container2.png", GL_RGBA);
-  unsigned int specularMap =
-      load_texture("lighting_maps_specular_color.png", GL_RGBA);
-
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, diffuseMap);
-  glActiveTexture(GL_TEXTURE1);
-  glBindTexture(GL_TEXTURE_2D, specularMap);
-
-  return VAO;
-}
 
 unsigned int getQuadVAO() {
   float quadVertices[] = {// vertex attributes for a quad that fills the entire
@@ -334,6 +210,68 @@ void setupScreenFBO(const unsigned int FBO, unsigned int &texture_o) {
   texture_o = texture;
 }
 
+unsigned int loadCubemap(vector<std::string> faces) {
+  stbi_set_flip_vertically_on_load(false);
+  unsigned int textureID;
+  glGenTextures(1, &textureID);
+  glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+  int width, height, nrChannels;
+  for (unsigned int i = 0; i < faces.size(); i++) {
+    unsigned char *data =
+        stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
+    if (data) {
+      glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height,
+                   0, GL_RGB, GL_UNSIGNED_BYTE, data);
+      stbi_image_free(data);
+    } else {
+      std::cout << "Cubemap texture failed to load at path: " << faces[i]
+                << std::endl;
+      stbi_image_free(data);
+    }
+  }
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+  stbi_set_flip_vertically_on_load(true);
+
+  return textureID;
+}
+
+unsigned int getSkyboxVAO() {
+  float skyboxVertices[] = {
+      // positions
+      -1.0f, 1.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  -1.0f, -1.0f,
+      1.0f,  -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, -1.0f, 1.0f,  -1.0f,
+
+      -1.0f, -1.0f, 1.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  -1.0f,
+      -1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, -1.0f, 1.0f,
+
+      1.0f,  -1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,  1.0f,
+      1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  -1.0f, 1.0f,  -1.0f, -1.0f,
+
+      -1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
+      1.0f,  1.0f,  1.0f,  1.0f,  -1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,
+
+      -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,
+      1.0f,  1.0f,  1.0f,  -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f,  -1.0f,
+
+      -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, -1.0f,
+      1.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f};
+  unsigned int VAO, VBO;
+  glGenVertexArrays(1, &VAO);
+  glGenBuffers(1, &VBO);
+  glBindVertexArray(VAO);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), skyboxVertices,
+               GL_STATIC_DRAW);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, (void *)0);
+  glEnableVertexAttribArray(0);
+  glBindVertexArray(0);
+  return VAO;
+}
+
 void Scene1(GLFWwindow *window) {
   // Shaders compilation
   // ------------------
@@ -355,7 +293,6 @@ void Scene1(GLFWwindow *window) {
   // Get needed VAOs
   // ------------------
   unsigned int AxisVAO = getAxisVAO();
-  unsigned int BoxVAO = getBoxVAO();
 
   // Light Settings
   // ------------------
@@ -363,8 +300,8 @@ void Scene1(GLFWwindow *window) {
   Lights lightSystem;
   Light spotLight, dirLight;
 
-/// SpotLight
-  glm::vec3 spotLightOffset(3, -3.0f, 0);
+  /// SpotLight
+  glm::vec3 spotLightOffset(1, -1.0f, 0);
 #define LIGHT_FAR_PLANE 1200.f
   spotLight.setType(SPOTLIGHT);
   spotLight.cutOff = glm::cos(glm::radians(30.f));
@@ -372,17 +309,18 @@ void Scene1(GLFWwindow *window) {
   spotLight.setAttenuation(1, 0.07, 0.017);
   spotLight.setColorRatio(4, 0.01, 1);
   spotLight.setColor(glm::vec3(1.f));
-  spotLight.setSpotlightProjection(glm::radians(35.f), 1, 0.1f, LIGHT_FAR_PLANE);
+  spotLight.setSpotlightProjection(glm::radians(35.f), 1, 0.1f,
+                                   LIGHT_FAR_PLANE);
   spotLight.setMapResolution(1024, 1024);
   lightSystem.addLight(spotLight);
 
   /// Directional Light
   dirLight.setType(DIRECTIONAL);
   dirLight.setPosition({150.f, 300.f, 150.f});
-  dirLight.setColorRatio(0.4, 0.1, 0);
+  dirLight.setColorRatio(1, 0.1, 0);
   dirLight.setColor(RGBColor(80, 104, 134));
-  dirLight.setDirection({-0.5, -1, -0.5});
-#define DIR_RANGE 300.f
+  dirLight.setDirection({-0.5, -1, -0.15});
+#define DIR_RANGE 400.f
   dirLight.setDirectionalProjection(-DIR_RANGE, DIR_RANGE, -DIR_RANGE,
                                     DIR_RANGE, 0.1f, LIGHT_FAR_PLANE);
   lightSystem.addLight(dirLight);
@@ -402,11 +340,21 @@ void Scene1(GLFWwindow *window) {
   Model modelSponza("model/sponza/sponza.obj");
 
   // Setup Screen Framebuffer & Shader
+  // ------------------
   unsigned int screenFBO, quadVAO, screenTex;
   glGenFramebuffers(1, &screenFBO);
   setupScreenFBO(screenFBO, screenTex);
   Shader screenShader("screen.vs", "screen.fs");
   quadVAO = getQuadVAO();
+
+  // Load Cubemaps
+  // ------------------
+  vector<std::string> faces{"skybox/right.jpg", "skybox/left.jpg",
+                            "skybox/top.jpg",   "skybox/bottom.jpg",
+                            "skybox/front.jpg", "skybox/back.jpg"};
+  unsigned int cubemapTexture = loadCubemap(faces);
+  Shader skyboxShader("skybox.vs", "skybox.fs");
+  unsigned int skyboxVAO = getSkyboxVAO();
 
   // Rendering Loop
   // ------------------
@@ -468,19 +416,14 @@ void Scene1(GLFWwindow *window) {
     // -----------------
     glClearColor(0.1f, 0.1f, 0.15f, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Draw Axis
+    defaultShader.use();
     drawAxis(defaultShader, AxisVAO);
 
     // Fix Camera Y Position
     // -----------------
     // mainCam.Position.y = 1;
-
-    // Draw my things
-    // -----------------
-    glm::vec3 lightColor(1.f);
-
-    glm::vec3 diffuseColor = lightColor * glm::vec3(0.5f);
-    glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f);
-    glm::vec3 specularColor = lightColor * glm::vec3(1.f);
 
     // Setup Lights
     // -------------
@@ -488,9 +431,9 @@ void Scene1(GLFWwindow *window) {
     // -----------------
     lightSystem.lights[0].setColor(RGBColor(255, 255, 255) * spotLightEnabled);
     lightSystem.lights[0].setSpotlightProjection(glm::radians(mainCam.Zoom),
-                                     1.0f, 0.1f,
-                                     LIGHT_FAR_PLANE);
-    // spotLight.setSpotlightProjection(glm::radians(35.f), 1, 0.1f, LIGHT_FAR_PLANE);
+                                                 1.0f, 0.1f, LIGHT_FAR_PLANE);
+    // spotLight.setSpotlightProjection(glm::radians(35.f), 1, 0.1f,
+    // LIGHT_FAR_PLANE);
     lightSystem.lights[0].setPosition(mainCam.Position + spotLightOffset);
     lightSystem.lights[0].setDirection(mainCam.Front);
 
@@ -511,7 +454,7 @@ void Scene1(GLFWwindow *window) {
       lightColor *= 2.f;
 
       light.setColor(lightColor);
-      light.setPosition(lightPosOffset);
+      light.setPosition(lightPosOffset + pointLightPositions[i - 2]);
 
       // lightSourceShader.use();
       // glBindVertexArray(lightCubeVAO);
@@ -529,7 +472,27 @@ void Scene1(GLFWwindow *window) {
     glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-    lightSystem.render(mainCam.Position, renderScene);
+    // Render Scene
+    lightSystem.render(mainCam.Position, renderScene, transformation);
+    glBindVertexArray(0);
+
+    // draw skybox as last
+    glDepthFunc(GL_LEQUAL); // change depth function so depth test passes when
+                            // values are equal to depth buffer's content
+    skyboxShader.use();
+    transformation(skyboxShader);
+    glm::mat4 view = glm::mat4(glm::mat3(
+        mainCam.GetViewMatrix())); // remove translation from the view matrix
+    skyboxShader.setMat4("view", view);
+    skyboxShader.setInt("skybox", 0);
+    // skybox cube
+    glBindVertexArray(skyboxVAO);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
+    glDepthFunc(GL_LESS); // set depth function back to default
+
     // Post-rendering
     // -----------------
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
@@ -546,11 +509,11 @@ void Scene1(GLFWwindow *window) {
 
     if (depthDebug) {
       depthDebugShader.use();
-      depthDebugShader.setInt("type", 1);
+      depthDebugShader.setInt("type", 0);
       depthDebugShader.setFloat("near_plane", 0.1f);
       depthDebugShader.setFloat("far_plane", LIGHT_FAR_PLANE);
       glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, lightSystem.lights[0].shadowMap);
+      glBindTexture(GL_TEXTURE_2D, lightSystem.lights[1].shadowMap);
       glDrawArrays(GL_TRIANGLES, 0, 6);
     }
 

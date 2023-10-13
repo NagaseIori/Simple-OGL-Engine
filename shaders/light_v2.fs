@@ -1,5 +1,5 @@
 #version 450 core
-#define LIGHT_MAX_COUNT 25
+#define LIGHT_MAX_COUNT 12
 #define MATERIAL_MAX_COUNT 8
 #define pow2(x) (x * x)
 const highp float pi = 3.1415926535 * 2.;
@@ -42,6 +42,7 @@ struct Light {
   float quadratic;
 
   sampler2D shadowMap;
+  // samplerCube cubeMap;
   int shadowCast;
   mat4 lightSpace;
 
@@ -92,7 +93,7 @@ float lightShadowCaculation(Light light, vec3 normal, vec3 lightDir) {
   float closestDepth = texture(light.shadowMap, projCoords.xy).r;
   float currentDepth = projCoords.z;
   float shadow = 0.;
-  float bias = 0.0005;  
+  float bias = 0.0005;
   int samples = 8;
 
   vec2 texelSize = 1.0 / textureSize(light.shadowMap, 0);
@@ -111,6 +112,27 @@ float lightShadowCaculation(Light light, vec3 normal, vec3 lightDir) {
   }
   shadow /= accmu;
   return shadow;
+}
+
+float pointLightShadowCaculation(Light light, vec3 fragPos) {
+  if (light.shadowCast == 0)
+    return 0.0;
+
+  // get vector between fragment position and light position
+  // vec3 fragToLight = fragPos - light.position;
+  // // use the light to fragment vector to sample from the depth map
+  // float closestDepth = texture(light.cubeMap, fragToLight).r;
+  // // it is currently in linear range between [0,1]. Re-transform back to
+  // // original value
+  // closestDepth *= light.cutOff;
+  // // now get current linear depth as the length between the fragment and light
+  // // position
+  // float currentDepth = length(fragToLight);
+  // // now test for shadows
+  // float bias = 0.0005;
+  // float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+
+  // return shadow;
 }
 
 vec4 pointLight(Light light) {
@@ -136,6 +158,8 @@ vec4 pointLight(Light light) {
   float spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
   vec4 specular = vec4(light.specular, 1.0) * spec *
                   getMaterialSpecularColor(material, TexCoords);
+
+  // float shadow = pointLightShadowCaculation(light, FragPos);
 
   return (ambient + diffuse + specular) * attenuation;
 }
@@ -165,9 +189,10 @@ vec4 spotLight(Light light) {
   float spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
   vec4 specular = vec4(light.specular, 1.0) * spec *
                   getMaterialSpecularColor(material, TexCoords);
-  
+
   float shadow = lightShadowCaculation(light, norm, lightDir);
-  return (ambient + (diffuse + specular) * intensity * (1. - shadow)) * attenuation;
+  return (ambient + (diffuse + specular) * intensity * (1. - shadow)) *
+         attenuation;
 }
 
 vec4 directionLight(Light light) {

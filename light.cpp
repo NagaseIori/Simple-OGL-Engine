@@ -10,6 +10,33 @@ void Light::updateSpaceMatrix() {
     lightSpaceMatrix = lightProjection * lightView;
     shadowCast = true;
     break;
+  case POINT:
+    shadowTransforms.push_back(lightProjection *
+                               glm::lookAt(position,
+                                           position + glm::vec3(1.0, 0.0, 0.0),
+                                           glm::vec3(0.0, -1.0, 0.0)));
+    shadowTransforms.push_back(lightProjection *
+                               glm::lookAt(position,
+                                           position + glm::vec3(-1.0, 0.0, 0.0),
+                                           glm::vec3(0.0, -1.0, 0.0)));
+    shadowTransforms.push_back(lightProjection *
+                               glm::lookAt(position,
+                                           position + glm::vec3(0.0, 1.0, 0.0),
+                                           glm::vec3(0.0, 0.0, 1.0)));
+    shadowTransforms.push_back(lightProjection *
+                               glm::lookAt(position,
+                                           position + glm::vec3(0.0, -1.0, 0.0),
+                                           glm::vec3(0.0, 0.0, -1.0)));
+    shadowTransforms.push_back(lightProjection *
+                               glm::lookAt(position,
+                                           position + glm::vec3(0.0, 0.0, 1.0),
+                                           glm::vec3(0.0, -1.0, 0.0)));
+    shadowTransforms.push_back(lightProjection *
+                               glm::lookAt(position,
+                                           position + glm::vec3(0.0, 0.0, -1.0),
+                                           glm::vec3(0.0, -1.0, 0.0)));
+    shadowCast = true;
+    break;
   default:
     break;
   }
@@ -20,20 +47,40 @@ void Light::setupShadowMap() {
   glGenFramebuffers(1, &depthMapFBO);
   unsigned int depthMap;
   glGenTextures(1, &depthMap);
-  glBindTexture(GL_TEXTURE_2D, depthMap);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadowWidth,
-               shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-  glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
-                         depthMap, 0);
-  glDrawBuffer(GL_NONE);
-  glReadBuffer(GL_NONE); // not going to draw any color data
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  if (type != POINT) {
+    glBindTexture(GL_TEXTURE_2D, depthMap);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadowWidth,
+                 shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
+                           depthMap, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE); // not going to draw any color data
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  } else {
+    glBindTexture(GL_TEXTURE_CUBE_MAP, depthMap);
+    for (unsigned int i = 0; i < 6; ++i)
+      glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_DEPTH_COMPONENT,
+                   shadowWidth, shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT,
+                   NULL);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthMap, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  }
 
   shadowFBO = depthMapFBO;
   shadowMap = depthMap;
@@ -51,8 +98,9 @@ void Light::setupShader(int index, int shadowMapIndex, Shader &shader) {
 
   shader.setVec3(elestr("position"), position);
   shader.setVec3(elestr("direction"), direction);
-  shader.setFloat(elestr("cutOff"), cutOff);
+  shader.setFloat(elestr("cutOff"), type != POINT ? cutOff : farPlane);
   shader.setFloat(elestr("outerCutOff"), outerCutOff);
+  // shader.setFloat(elestr("far_plane"), farPlane);
   shader.setVec3(elestr("ambient"), ambient);
   shader.setVec3(elestr("diffuse"), diffuse);
   shader.setVec3(elestr("specular"), specular);
@@ -61,9 +109,9 @@ void Light::setupShader(int index, int shadowMapIndex, Shader &shader) {
   shader.setFloat(elestr("quadratic"), quadratic);
   shader.setInt(elestr("type"), type);
   shader.setInt(elestr("shadowCast"), shadowCast);
-  shader.setInt(elestr("shadowMap"), shadowMapIndex);
   shader.setMat4(elestr("lightSpace"), lightSpaceMatrix);
-
+  shader.setInt(elestr(type != POINT ? "shadowMap" : "cubeMap"),
+                shadowMapIndex);
 }
 
 void Light::initialize() {

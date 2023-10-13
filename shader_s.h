@@ -17,6 +17,8 @@ public:
   // ------------------------------------------------------------------------
   Shader(const char *vertexPath, const char *fragmentPath,
          const char *geometryPath = nullptr) {
+    std::cout << "Compiling shaders at: " << vertexPath << " " << fragmentPath
+              << " " << (geometryPath ? geometryPath : "") << std::endl;
     // 1. retrieve the vertex/fragment source code from filePath
     std::string vertexCode;
     std::string fragmentCode;

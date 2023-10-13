@@ -62,6 +62,19 @@ public:
     updateSpaceMatrix();
   }
 
+  void setPointProjection(float nearPlane, float farPlane) {
+    if (type != POINT) {
+      cout << "::Warning:: Setting spotlight projection to a non-spotlight "
+              "light!"
+           << endl;
+    }
+    float aspect = (float)shadowWidth / (float)shadowHeight;
+    lightProjection =
+        glm::perspective(glm::radians(90.0f), aspect, nearPlane, farPlane);
+    this->farPlane = farPlane;
+    updateSpaceMatrix();
+  }
+
   void setAttenuation(float constant, float linear, float quadratic) {
     this->constant = constant;
     this->linear = linear;
@@ -101,14 +114,20 @@ public:
       return;
     glViewport(0, 0, shadowWidth, shadowHeight);
     glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+
     glClear(GL_DEPTH_BUFFER_BIT);
-    // glCullFace(GL_FRONT);
-    // glDisable(GL_CULL_FACE);
     depthShader.use();
-    depthShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+    if (type != POINT) {
+      depthShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+    } else {
+      for (int i = 0; i < 6; i++)
+        depthShader.setMat4("shadowMatrices[" + std::to_string(i) + "]",
+                            shadowTransforms[i]);
+      depthShader.setVec3("lightPos", position);
+      depthShader.setFloat("far_plane", farPlane);
+      depthShader.setMat4("model", model);
+    }
     renderScene(depthShader);
-    // glEnable(GL_CULL_FACE);
-    // glCullFace(GL_BACK);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
   }
@@ -148,8 +167,10 @@ public:
 private:
   friend class Lights;
   glm::mat4 lightSpaceMatrix;
+  std::vector<glm::mat4> shadowTransforms;
   bool initialized = false;
   bool shadowCast = false;
+  float farPlane;
   unsigned int shadowWidth = SHADOW_WIDTH, shadowHeight = SHADOW_HEIGHT;
 
   void updateSpaceMatrix();
@@ -162,6 +183,7 @@ private:
 class Lights {
 private:
   Shader depthShader, lightShader, lightSourceShader;
+  Shader pointDepthShader;
   unsigned int lightVAO;
 
 public:
@@ -184,7 +206,9 @@ public:
     lightShader.setInt("lightCount", lights.size());
     for (int i = 0; i < lights.size(); i++) {
       glActiveTexture(GL_TEXTURE10 + i);
-      glBindTexture(GL_TEXTURE_2D, lights[i].shadowMap);
+      glBindTexture(lights[i].type != POINT ? GL_TEXTURE_2D
+                                            : GL_TEXTURE_CUBE_MAP,
+                    lights[i].shadowMap);
       lights[i].setupShader(i, 10 + i, lightShader);
     }
 
@@ -206,7 +230,9 @@ public:
   Lights()
       : depthShader("simpleDepthShader.vs", "simpleDepthShader.fs"),
         lightShader("light.vs", "light_v2.fs"),
-        lightSourceShader("light.vs", "light_source.fs") {
+        lightSourceShader("light.vs", "light_source.fs"),
+        pointDepthShader("point_light_depth.vs", "point_light_depth.fs",
+                         "point_light_depth.gs") {
     lightVAO = getLightVAO();
   }
 };

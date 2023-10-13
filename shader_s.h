@@ -20,6 +20,8 @@ public:
   // ------------------------------------------------------------------------
   Shader(const char *vertexPath, const char *fragmentPath)
       : shaderPath("shaders/") {
+    std::cout << "Compiling shdaders at: " << vertexPath << " " << fragmentPath
+         << "\n";
     // 1. retrieve the vertex/fragment source code from filePath
     std::string vertexCode;
     std::string fragmentCode;

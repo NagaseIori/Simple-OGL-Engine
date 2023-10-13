@@ -8,6 +8,7 @@
 
 #include "camera.h"
 #include "utils.h"
+#include "light.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -18,10 +19,6 @@
 #include <cmath>
 #include <fstream>
 #include <vector>
-
-#define WINDOW_WIDTH 1920
-#define WINDOW_HEIGHT 1080
-#define FAR_PLANE 1000000.f
 
 float visibility = 0.2;
 float camera_height = 3.0;
@@ -351,7 +348,7 @@ void Scene1(GLFWwindow *window) {
     cubePositions.push_back(
         {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
   }
-  for (int i = 0; i < 18; i++)
+  for (int i = 0; i < 10; i++)
     pointLightPositions.push_back(
         {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
 
@@ -362,12 +359,41 @@ void Scene1(GLFWwindow *window) {
 
   // Light Settings
   // ------------------
-  Shader lightSourceShader("light.vs", "light_source.fs");
-  Shader directionLightShader("light.vs", "light_direction.fs");
-  Shader pointLightShader("light.vs", "light_point.fs");
-  Shader spotLightShader("light.vs", "light_spot.fs");
-  Shader lightShader("light.vs", "light_v2.fs");
   unsigned int lightCubeVAO = getLightVAO();
+  Lights lightSystem;
+  Light spotLight, dirLight;
+
+/// SpotLight
+  glm::vec3 spotLightOffset(3, -3.0f, 0);
+#define LIGHT_FAR_PLANE 1200.f
+  spotLight.setType(SPOTLIGHT);
+  spotLight.cutOff = glm::cos(glm::radians(30.f));
+  spotLight.outerCutOff = glm::cos(glm::radians(35.f));
+  spotLight.setAttenuation(1, 0.07, 0.017);
+  spotLight.setColorRatio(4, 0.01, 1);
+  spotLight.setColor(glm::vec3(1.f));
+  spotLight.setSpotlightProjection(glm::radians(35.f), 1, 0.1f, LIGHT_FAR_PLANE);
+  spotLight.setMapResolution(1024, 1024);
+  lightSystem.addLight(spotLight);
+
+  /// Directional Light
+  dirLight.setType(DIRECTIONAL);
+  dirLight.setPosition({150.f, 300.f, 150.f});
+  dirLight.setColorRatio(0.4, 0.1, 0);
+  dirLight.setColor(RGBColor(80, 104, 134));
+  dirLight.setDirection({-0.5, -1, -0.5});
+#define DIR_RANGE 300.f
+  dirLight.setDirectionalProjection(-DIR_RANGE, DIR_RANGE, -DIR_RANGE,
+                                    DIR_RANGE, 0.1f, LIGHT_FAR_PLANE);
+  lightSystem.addLight(dirLight);
+  /// Point Lights
+  for (auto pos : pointLightPositions) {
+    Light pointLight;
+    pointLight.setType(POINT);
+    pointLight.setColorRatio(0.5, 0.2, 1);
+    pointLight.setAttenuation(1, 0.09, 0.032);
+    lightSystem.addLight(pointLight);
+  }
 
   // Load Models
   // ------------------
@@ -388,32 +414,10 @@ void Scene1(GLFWwindow *window) {
 
   // Depthmap setup
   // -----------------
-  unsigned int depthMapFBO;
-  glGenFramebuffers(1, &depthMapFBO);
-  const unsigned int SHADOW_WIDTH = 8192, SHADOW_HEIGHT = 8192;
-  unsigned int depthMap;
-  glGenTextures(1, &depthMap);
-  glBindTexture(GL_TEXTURE_2D, depthMap);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH,
-               SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-  glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
-                         depthMap, 0);
-  glDrawBuffer(GL_NONE);
-  glReadBuffer(GL_NONE); // not going to draw any color data
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-  glm::vec3 dirLightDirection(-0.5, -1.0f, -0.5);
-  Shader simpleDepthShader("simpleDepthShader.vs", "simpleDepthShader.fs");
   Shader depthDebugShader("depthShaderDebug.vs", "depthShaderDebug.fs");
-
   auto renderScene = [&](Shader &shader) {
     shader.use();
+    transformation(shader);
     // Draw boxes
     // -------------
     for (unsigned int i = 0; i < cubePositions.size(); i++) {
@@ -478,49 +482,22 @@ void Scene1(GLFWwindow *window) {
     glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f);
     glm::vec3 specularColor = lightColor * glm::vec3(1.f);
 
-    lightShader.use();
-    transformation(lightShader);
-    glBindVertexArray(lightCubeVAO);
-    // Setup Basics
-    lightShader.setVec3("viewPos", mainCam.Position);
-    lightShader.setFloat("material.shininess", 2.0f);
-
     // Setup Lights
     // -------------
-    lightShader.setInt("lightCount", pointLightPositions.size() + 2);
     /// Spot Light
     // -----------------
-    lightShader.setVec3("lights[0].position", mainCam.Position);
-    lightShader.setVec3("lights[0].direction", mainCam.Front);
-    lightShader.setFloat("lights[0].cutOff", glm::cos(glm::radians(30.f)));
-    lightShader.setFloat("lights[0].outerCutOff", glm::cos(glm::radians(35.f)));
-    lightShader.setVec3("lights[0].ambient",
-                        ambientColor * 2.f * spotLightEnabled);
-    lightShader.setVec3("lights[0].diffuse",
-                        diffuseColor * 2.f * spotLightEnabled);
-    lightShader.setVec3("lights[0].specular",
-                        specularColor * 2.f * spotLightEnabled);
-    lightShader.setFloat("lights[0].constant", 1.0f);
-    lightShader.setFloat("lights[0].linear", 0.045f);
-    lightShader.setFloat("lights[0].quadratic", 0.0075f);
-    lightShader.setInt("lights[0].type", 2);
-    /// Direction Light
-    // -----------------
-    // lightColor = glm::vec3(1.f, 0.3f, 0.f);  // sunset
-    lightColor = RGBColor(80,104,134);  // moonlight
-
-    diffuseColor = lightColor * 0.4f;
-    ambientColor = diffuseColor * 0.1f;
-    specularColor = lightColor * 0.f;
-    lightShader.setVec3("lights[1].direction", dirLightDirection);
-    lightShader.setVec3("lights[1].ambient", ambientColor);
-    lightShader.setVec3("lights[1].diffuse", diffuseColor);
-    lightShader.setVec3("lights[1].specular", specularColor);
-    lightShader.setInt("lights[1].type", 1);
+    lightSystem.lights[0].setColor(RGBColor(255, 255, 255) * spotLightEnabled);
+    lightSystem.lights[0].setSpotlightProjection(glm::radians(mainCam.Zoom),
+                                     1.0f, 0.1f,
+                                     LIGHT_FAR_PLANE);
+    // spotLight.setSpotlightProjection(glm::radians(35.f), 1, 0.1f, LIGHT_FAR_PLANE);
+    lightSystem.lights[0].setPosition(mainCam.Position + spotLightOffset);
+    lightSystem.lights[0].setDirection(mainCam.Front);
 
     /// Point Lights
     // -----------------
-    for (int i = 0; i < pointLightPositions.size(); i++) {
+    for (int i = 2; i < lightSystem.lights.size(); i++) {
+      auto &light = lightSystem.lights[i];
       glm::vec3 lightPosOffset;
       lightPosOffset.x = cos(glfwGetTime() + i * 11.4) * 12.0;
       lightPosOffset.y = sin(glfwGetTime() * 3 + i * 11.4) * 12.0;
@@ -533,69 +510,26 @@ void Scene1(GLFWwindow *window) {
       lightColor.z = sin(time - i * 11.4) / 2 + 0.5;
       lightColor *= 2.f;
 
-      glm::vec3 diffuseColor = lightColor * glm::vec3(0.5f);
-      glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f);
-      glm::vec3 specularColor = lightColor * glm::vec3(1.f);
+      light.setColor(lightColor);
+      light.setPosition(lightPosOffset);
 
-      glm::vec3 pos = pointLightPositions[i] + lightPosOffset;
-      lightShader.use();
-      std::string light_prefix =
-          std::string("lights[") + std::to_string(i + 2) + "].";
-      auto elestr = [&](std::string element) { return light_prefix + element; };
-      lightShader.setVec3(elestr("position"), pos);
-      lightShader.setVec3(elestr("ambient"), ambientColor);
-      lightShader.setVec3(elestr("diffuse"), diffuseColor);
-      lightShader.setVec3(elestr("specular"), specularColor);
-      lightShader.setFloat(elestr("constant"), 1.0f);
-      lightShader.setFloat(elestr("linear"), 0.09f);
-      lightShader.setFloat(elestr("quadratic"), 0.032f);
-      lightShader.setInt(elestr("type"), 0);
-
-      lightSourceShader.use();
-      glBindVertexArray(lightCubeVAO);
-      transformation(lightSourceShader);
-      model = glm::mat4(1.0f);
-      model = glm::translate(model, pos);
-      model = glm::scale(model, glm::vec3(0.2f));
-      lightSourceShader.setMat4("model", model);
-      lightSourceShader.setVec3("lightColor", lightColor);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
+      // lightSourceShader.use();
+      // glBindVertexArray(lightCubeVAO);
+      // transformation(lightSourceShader);
+      // model = glm::mat4(1.0f);
+      // model = glm::translate(model, pos);
+      // model = glm::scale(model, glm::vec3(0.2f));
+      // lightSourceShader.setMat4("model", model);
+      // lightSourceShader.setVec3("lightColor", lightColor);
+      // glDrawArrays(GL_TRIANGLES, 0, 36);
     }
     // Render to depthmap
-#define LIGHT_INF 300.f
-#define DEPTH_FAR_PLANE 1200.f
-    glm::mat4 lightProjection = glm::ortho(-LIGHT_INF, LIGHT_INF, -LIGHT_INF,
-                                           LIGHT_INF, 0.1f, DEPTH_FAR_PLANE);
-    glm::vec3 lightPosition = glm::vec3(150.f, 300.f, 150.f);
-    glm::mat4 lightView =
-        glm::lookAt(lightPosition, lightPosition + dirLightDirection,
-                    glm::vec3(0.f, 1.f, 0.f));
-    glm::mat4 lightSpaceMatrix = lightProjection * lightView;
-    simpleDepthShader.use();
-    simpleDepthShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
-    simpleDepthShader.setVec3("lightDir", dirLightDirection);
-
-    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
-    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-    glClear(GL_DEPTH_BUFFER_BIT);
-    // glCullFace(GL_FRONT);
-    // glDisable(GL_CULL_FACE);
-    renderScene(simpleDepthShader);
-    // glEnable(GL_CULL_FACE);
-    // glCullFace(GL_BACK);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    lightSystem.updateShadowMap(renderScene);
 
     glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-    lightShader.use();
-    lightShader.setInt("lights[1].shadowCast", 1);
-    glActiveTexture(GL_TEXTURE20);
-    glBindTexture(GL_TEXTURE_2D, depthMap);
-    lightShader.setInt("lights[1].shadowMap", 20);
-    lightShader.setMat4("lights[1].lightSpace", lightSpaceMatrix);
-
-    renderScene(lightShader);
+    lightSystem.render(mainCam.Position, renderScene);
     // Post-rendering
     // -----------------
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
@@ -612,8 +546,11 @@ void Scene1(GLFWwindow *window) {
 
     if (depthDebug) {
       depthDebugShader.use();
+      depthDebugShader.setInt("type", 1);
+      depthDebugShader.setFloat("near_plane", 0.1f);
+      depthDebugShader.setFloat("far_plane", LIGHT_FAR_PLANE);
       glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, depthMap);
+      glBindTexture(GL_TEXTURE_2D, lightSystem.lights[0].shadowMap);
       glDrawArrays(GL_TRIANGLES, 0, 6);
     }
 

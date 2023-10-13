@@ -165,7 +165,9 @@ vec4 spotLight(Light light) {
   float spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
   vec4 specular = vec4(light.specular, 1.0) * spec *
                   getMaterialSpecularColor(material, TexCoords);
-  return (ambient + (diffuse + specular) * intensity) * attenuation;
+  
+  float shadow = lightShadowCaculation(light, norm, lightDir);
+  return (ambient + (diffuse + specular) * intensity * (1. - shadow)) * attenuation;
 }
 
 vec4 directionLight(Light light) {

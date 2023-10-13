@@ -7,6 +7,7 @@
 #include "stb_image.h"
 
 #include "camera.h"
+#include "utils.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -461,7 +462,7 @@ void Scene1(GLFWwindow *window) {
 
     // Rendering
     // -----------------
-    glClearColor(0.2f, 0.2f, 0.3f, 1.0);
+    glClearColor(0.1f, 0.1f, 0.15f, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     drawAxis(defaultShader, AxisVAO);
 
@@ -505,9 +506,11 @@ void Scene1(GLFWwindow *window) {
     lightShader.setInt("lights[0].type", 2);
     /// Direction Light
     // -----------------
-    lightColor = glm::vec3(1.f, 0.3f, 0.f);
-    diffuseColor = lightColor * 1.5f;
-    ambientColor = lightColor * 0.01f;
+    // lightColor = glm::vec3(1.f, 0.3f, 0.f);  // sunset
+    lightColor = RGBColor(80,104,134);  // moonlight
+
+    diffuseColor = lightColor * 0.4f;
+    ambientColor = diffuseColor * 0.1f;
     specularColor = lightColor * 0.f;
     lightShader.setVec3("lights[1].direction", dirLightDirection);
     lightShader.setVec3("lights[1].ambient", ambientColor);
@@ -559,7 +562,7 @@ void Scene1(GLFWwindow *window) {
       glDrawArrays(GL_TRIANGLES, 0, 36);
     }
     // Render to depthmap
-#define LIGHT_INF 200.f
+#define LIGHT_INF 300.f
 #define DEPTH_FAR_PLANE 1200.f
     glm::mat4 lightProjection = glm::ortho(-LIGHT_INF, LIGHT_INF, -LIGHT_INF,
                                            LIGHT_INF, 0.1f, DEPTH_FAR_PLANE);
@@ -644,7 +647,7 @@ int main() {
     return -1;
   }
 
-  // glEnable(GL_MULTISAMPLE);
+  glEnable(GL_MULTISAMPLE);
   glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
   glfwSetScrollCallback(window, scroll_callback);

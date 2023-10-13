@@ -104,6 +104,7 @@ float lightShadowCaculation(Light light, vec3 normal, vec3 lightDir) {
       float pcfDepth =
           texture(light.shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
       weight = gaussian(vec2(x, y), sigma);
+      // weight = 1;
       shadow += (currentDepth - bias > pcfDepth ? 1.0 : 0.0) * weight;
       accmu += weight;
     }
@@ -174,7 +175,7 @@ vec4 directionLight(Light light) {
   vec3 norm = normalize(Normal + getMaterialNormal(material, TexCoords));
   vec3 lightDir = normalize(-light.direction);
 
-  float diff = max(dot(norm, lightDir), 0.0);
+  float diff = max(dot(lightDir, norm), 0.0);
   vec4 diffuse = vec4(light.diffuse, 1.0) * diff *
                  getMaterialDiffuseColor(material, TexCoords);
   // Specular
@@ -186,6 +187,7 @@ vec4 directionLight(Light light) {
 
   float shadow = lightShadowCaculation(light, norm, lightDir);
   return ambient + (diffuse + specular) * (1. - shadow);
+  // return vec4(norm, 1.);
 }
 
 void main() {

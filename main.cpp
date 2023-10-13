@@ -266,11 +266,71 @@ auto getLightVAO() {
   return VAO;
 }
 
+unsigned int getQuadVAO() {
+  float quadVertices[] = {// vertex attributes for a quad that fills the entire
+                          // screen in Normalized Device Coordinates.
+                          // positions   // texCoords
+                          -1.0f, 1.0f, 0.0f, 1.0f,  -1.0f, -1.0f,
+                          0.0f,  0.0f, 1.0f, -1.0f, 1.0f,  0.0f,
+
+                          -1.0f, 1.0f, 0.0f, 1.0f,  1.0f,  -1.0f,
+                          1.0f,  0.0f, 1.0f, 1.0f,  1.0f,  1.0f};
+  unsigned int VAO, VBO;
+  glGenBuffers(1, &VBO);
+  glGenVertexArrays(1, &VAO);
+  glBindVertexArray(VAO);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices,
+               GL_STATIC_DRAW);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                        (void *)(2 * sizeof(float)));
+  glEnableVertexAttribArray(0);
+  glEnableVertexAttribArray(1);
+  glBindVertexArray(0);
+  return VAO;
+}
+
 void drawAxis(Shader &shader, unsigned int AxisVAO) {
   shader.use();
   transformation(shader);
   glBindVertexArray(AxisVAO);
   glDrawArrays(GL_LINES, 0, 6);
+}
+
+void setupScreenFBO(const unsigned int FBO, unsigned int &texture_o) {
+  glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+
+  unsigned int texture;
+  glGenTextures(1, &texture);
+  glBindTexture(GL_TEXTURE_2D, texture);
+
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RGB,
+               GL_UNSIGNED_BYTE, NULL);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         texture, 0);
+
+  unsigned int rbo;
+  glGenRenderbuffers(1, &rbo);
+
+  glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, WINDOW_WIDTH,
+                        WINDOW_HEIGHT);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+                            GL_RENDERBUFFER, rbo);
+
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+                            GL_RENDERBUFFER, rbo);
+
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!"
+              << std::endl;
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  texture_o = texture;
 }
 
 void Scene1(GLFWwindow *window) {
@@ -302,7 +362,7 @@ void Scene1(GLFWwindow *window) {
   Shader directionLightShader("light.vs", "light_direction.fs");
   Shader pointLightShader("light.vs", "light_point.fs");
   Shader spotLightShader("light.vs", "light_spot.fs");
-  Shader lightShader("light.vs", "light.fs");
+  Shader lightShader("light.vs", "light_v2.fs");
   unsigned int lightCubeVAO = getLightVAO();
 
   // Load Models
@@ -311,37 +371,23 @@ void Scene1(GLFWwindow *window) {
   // Model modelGirl("model/girl/girl.usdc");
   Model modelSponza("model/sponza/sponza.obj");
 
+  // Setup Screen Framebuffer & Shader
+  unsigned int screenFBO, quadVAO, screenTex;
+  glGenFramebuffers(1, &screenFBO);
+  setupScreenFBO(screenFBO, screenTex);
+  Shader screenShader("screen.vs", "screen.fs");
+  quadVAO = getQuadVAO();
+
   // Rendering Loop
   // ------------------
   glm::mat4 model(1.0f);
-  while (!glfwWindowShouldClose(window)) {
-    // Time Update
-    float currentFrame = glfwGetTime();
-    deltaTime = currentFrame - lastFrame;
-    lastFrame = currentFrame;
 
-    // Something else
+  auto renderScene = [&]() {
     glm::vec3 lightColor(1.f);
 
     glm::vec3 diffuseColor = lightColor * glm::vec3(0.5f);
     glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f);
     glm::vec3 specularColor = lightColor * glm::vec3(1.f);
-
-    // Pre-rendering
-    process_input(window);
-
-    // Rendering
-    glClearColor(0.2f, 0.2f, 0.3f, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    // Fix Camera Y Position
-    // mainCam.Position.y = 1;
-
-    // Draw Axis
-    drawAxis(defaultShader, AxisVAO);
-
-    // Draw my things
-    Shader lightShader("light.vs", "light_v2.fs");
 
     lightShader.use();
     transformation(lightShader);
@@ -451,8 +497,45 @@ void Scene1(GLFWwindow *window) {
     // lightShader.setMat4("model",
     //                     glm::scale(glm::mat4(1.f), glm::vec3(0.05f)));
     // modelGirl.Draw(lightShader);
+  };
+  while (!glfwWindowShouldClose(window)) {
+    // Time Update
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
+
+    // Something else
+
+    // Pre-rendering
+    process_input(window);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
+    glEnable(GL_DEPTH_TEST);
+
+    // Rendering
+    glClearColor(0.2f, 0.2f, 0.3f, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    drawAxis(defaultShader, AxisVAO);
+
+    // Fix Camera Y Position
+    // mainCam.Position.y = 1;
+
+    // Draw my things
+    renderScene();
 
     // Post-rendering
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
+    glClearColor(.0f, 1.0f, .0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    screenShader.use();
+    glBindVertexArray(quadVAO);
+    glDisable(GL_DEPTH_TEST);
+    glActiveTexture(GL_TEXTURE0);
+    screenShader.setInt("screenTexture", 0);
+    glBindTexture(GL_TEXTURE_2D, screenTex);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
     glBindVertexArray(0);
     glfwSwapBuffers(window);
     glfwPollEvents();

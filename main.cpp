@@ -28,6 +28,7 @@ float deltaTime = 0.0f; // Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
 float lastX = WINDOW_WIDTH / 2., lastY = WINDOW_HEIGHT / 2.;
 float spotLightEnabled = 1.0;
+bool depthDebug = false;
 
 Camera mainCam(30.f, 30.f, 3.f, 0.f, 1.f, 0.f, -135.f, -45.f);
 
@@ -60,6 +61,8 @@ void process_input(GLFWwindow *window) {
   else {
     spotLightEnabled = 0.0;
   }
+
+  depthDebug = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
 }
 
 void shader_status_check(unsigned int shaderIndex) {
@@ -382,7 +385,92 @@ void Scene1(GLFWwindow *window) {
   // ------------------
   glm::mat4 model(1.0f);
 
-  auto renderScene = [&]() {
+  // Depthmap setup
+  // -----------------
+  unsigned int depthMapFBO;
+  glGenFramebuffers(1, &depthMapFBO);
+  const unsigned int SHADOW_WIDTH = 8192, SHADOW_HEIGHT = 8192;
+  unsigned int depthMap;
+  glGenTextures(1, &depthMap);
+  glBindTexture(GL_TEXTURE_2D, depthMap);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH,
+               SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+  glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
+                         depthMap, 0);
+  glDrawBuffer(GL_NONE);
+  glReadBuffer(GL_NONE); // not going to draw any color data
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  glm::vec3 dirLightDirection(-0.5, -1.0f, -0.5);
+  Shader simpleDepthShader("simpleDepthShader.vs", "simpleDepthShader.fs");
+  Shader depthDebugShader("depthShaderDebug.vs", "depthShaderDebug.fs");
+
+  auto renderScene = [&](Shader &shader) {
+    shader.use();
+    // Draw boxes
+    // -------------
+    for (unsigned int i = 0; i < cubePositions.size(); i++) {
+      glm::mat4 model = glm::mat4(1.0f);
+      model = glm::translate(
+          model, cubePositions[i] +
+                     glm::vec3(0.f, sin(glfwGetTime() + i * 1.14) * 4.f, 0.f));
+      float angle = 20.0f * i;
+      model = glm::rotate(model, float(glfwGetTime() + i * 0.5),
+                          glm::vec3(1.0f, 0.3f, 0.5f));
+      // model = glm::scale(model, glm::vec3(4.f));
+      shader.setMat4("model", model);
+
+      modelBag.Draw(shader);
+      // modelMiku.Draw(shader);
+    }
+
+    // Draw Sponza
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.f, -50.f, 0.f));
+    model = glm::scale(model, glm::vec3(0.1f));
+    shader.setMat4("model", model);
+    modelSponza.Draw(shader);
+
+    // Draw Girl
+    // lightShader.setMat4("model",
+    //                     glm::scale(glm::mat4(1.f), glm::vec3(0.05f)));
+    // modelGirl.Draw(lightShader);
+  };
+  while (!glfwWindowShouldClose(window)) {
+    // Time Update
+    // -----------------
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
+
+    // Something else
+    // -----------------
+
+    // Pre-rendering
+    // -----------------
+    process_input(window);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
+    glEnable(GL_DEPTH_TEST);
+
+    // Rendering
+    // -----------------
+    glClearColor(0.2f, 0.2f, 0.3f, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    drawAxis(defaultShader, AxisVAO);
+
+    // Fix Camera Y Position
+    // -----------------
+    // mainCam.Position.y = 1;
+
+    // Draw my things
+    // -----------------
     glm::vec3 lightColor(1.f);
 
     glm::vec3 diffuseColor = lightColor * glm::vec3(0.5f);
@@ -400,6 +488,7 @@ void Scene1(GLFWwindow *window) {
     // -------------
     lightShader.setInt("lightCount", pointLightPositions.size() + 2);
     /// Spot Light
+    // -----------------
     lightShader.setVec3("lights[0].position", mainCam.Position);
     lightShader.setVec3("lights[0].direction", mainCam.Front);
     lightShader.setFloat("lights[0].cutOff", glm::cos(glm::radians(30.f)));
@@ -415,19 +504,19 @@ void Scene1(GLFWwindow *window) {
     lightShader.setFloat("lights[0].quadratic", 0.0075f);
     lightShader.setInt("lights[0].type", 2);
     /// Direction Light
+    // -----------------
     lightColor = glm::vec3(1.f, 0.3f, 0.f);
-
-    diffuseColor = lightColor * glm::vec3(0.5f);
-    ambientColor = diffuseColor * glm::vec3(0.2f);
-    specularColor = lightColor * glm::vec3(1.f);
-    lightShader.setVec3("lights[1].direction", -0.5, -1.0f, -0.5);
-    lightShader.setVec3("lights[1].ambient", ambientColor * .1f);
-    lightShader.setVec3("lights[1].diffuse", diffuseColor * .4f);
-    lightShader.setVec3("lights[1].specular", specularColor * .0f);
+    diffuseColor = lightColor * 1.5f;
+    ambientColor = lightColor * 0.01f;
+    specularColor = lightColor * 0.f;
+    lightShader.setVec3("lights[1].direction", dirLightDirection);
+    lightShader.setVec3("lights[1].ambient", ambientColor);
+    lightShader.setVec3("lights[1].diffuse", diffuseColor);
+    lightShader.setVec3("lights[1].specular", specularColor);
     lightShader.setInt("lights[1].type", 1);
 
     /// Point Lights
-
+    // -----------------
     for (int i = 0; i < pointLightPositions.size(); i++) {
       glm::vec3 lightPosOffset;
       lightPosOffset.x = cos(glfwGetTime() + i * 11.4) * 12.0;
@@ -469,61 +558,43 @@ void Scene1(GLFWwindow *window) {
       lightSourceShader.setVec3("lightColor", lightColor);
       glDrawArrays(GL_TRIANGLES, 0, 36);
     }
+    // Render to depthmap
+#define LIGHT_INF 200.f
+#define DEPTH_FAR_PLANE 1200.f
+    glm::mat4 lightProjection = glm::ortho(-LIGHT_INF, LIGHT_INF, -LIGHT_INF,
+                                           LIGHT_INF, 0.1f, DEPTH_FAR_PLANE);
+    glm::vec3 lightPosition = glm::vec3(150.f, 300.f, 150.f);
+    glm::mat4 lightView =
+        glm::lookAt(lightPosition, lightPosition + dirLightDirection,
+                    glm::vec3(0.f, 1.f, 0.f));
+    glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+    simpleDepthShader.use();
+    simpleDepthShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+    simpleDepthShader.setVec3("lightDir", dirLightDirection);
 
-    lightShader.use();
-    // Draw boxes
-    // -------------
-    for (unsigned int i = 0; i < cubePositions.size(); i++) {
-      glm::mat4 model = glm::mat4(1.0f);
-      model = glm::translate(model, cubePositions[i]);
-      float angle = 20.0f * i;
-      model = glm::rotate(model, float(glfwGetTime() + i * 0.5),
-                          glm::vec3(1.0f, 0.3f, 0.5f));
-      // model = glm::scale(model, glm::vec3(4.f));
-      lightShader.setMat4("model", model);
-
-      modelBag.Draw(lightShader);
-      // modelMiku.Draw(lightShader);
-    }
-
-    // Draw Sponza
-    glm::mat4 model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(0.f, -50.f, 0.f));
-    model = glm::scale(model, glm::vec3(0.1f));
-    lightShader.setMat4("model", model);
-    modelSponza.Draw(lightShader);
-
-    // Draw Girl
-    // lightShader.setMat4("model",
-    //                     glm::scale(glm::mat4(1.f), glm::vec3(0.05f)));
-    // modelGirl.Draw(lightShader);
-  };
-  while (!glfwWindowShouldClose(window)) {
-    // Time Update
-    float currentFrame = glfwGetTime();
-    deltaTime = currentFrame - lastFrame;
-    lastFrame = currentFrame;
-
-    // Something else
-
-    // Pre-rendering
-    process_input(window);
+    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    // glCullFace(GL_FRONT);
+    // glDisable(GL_CULL_FACE);
+    renderScene(simpleDepthShader);
+    // glEnable(GL_CULL_FACE);
+    // glCullFace(GL_BACK);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
-    glEnable(GL_DEPTH_TEST);
+    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-    // Rendering
-    glClearColor(0.2f, 0.2f, 0.3f, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    drawAxis(defaultShader, AxisVAO);
+    lightShader.use();
+    lightShader.setInt("lights[1].shadowCast", 1);
+    glActiveTexture(GL_TEXTURE20);
+    glBindTexture(GL_TEXTURE_2D, depthMap);
+    lightShader.setInt("lights[1].shadowMap", 20);
+    lightShader.setMat4("lights[1].lightSpace", lightSpaceMatrix);
 
-    // Fix Camera Y Position
-    // mainCam.Position.y = 1;
-
-    // Draw my things
-    renderScene();
-
+    renderScene(lightShader);
     // Post-rendering
+    // -----------------
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
     glClearColor(.0f, 1.0f, .0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -535,6 +606,13 @@ void Scene1(GLFWwindow *window) {
     screenShader.setInt("screenTexture", 0);
     glBindTexture(GL_TEXTURE_2D, screenTex);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    if (depthDebug) {
+      depthDebugShader.use();
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, depthMap);
+      glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
 
     glBindVertexArray(0);
     glfwSwapBuffers(window);

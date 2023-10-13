@@ -1,6 +1,8 @@
 #version 450 core
-#define LIGHT_MAX_COUNT 64
+#define LIGHT_MAX_COUNT 25
 #define MATERIAL_MAX_COUNT 8
+#define pow2(x) (x * x)
+const highp float pi = 3.1415926535 * 2.;
 
 in vec4 vertexColor;
 in vec3 Normal;
@@ -39,33 +41,75 @@ struct Light {
   float linear;
   float quadratic;
 
+  sampler2D shadowMap;
+  int shadowCast;
+  mat4 lightSpace;
+
   int type; // 0 point 1 direction 2 spot
 };
 
 uniform Light lights[LIGHT_MAX_COUNT];
 
 vec4 getMaterialDiffuseColor(Material material, vec2 TexCoords) {
-  if(material.diffuse_c == 0) return vec4(0.);
+  if (material.diffuse_c == 0)
+    return vec4(0.);
   vec4 color = vec4(0.);
-  for(int i=0; i<material.diffuse_c; i++)
+  for (int i = 0; i < material.diffuse_c; i++)
     color += texture(material.diffuse[i], TexCoords);
   return color;
 }
 
 vec4 getMaterialSpecularColor(Material material, vec2 TexCoords) {
-  if(material.specular_c == 0) return vec4(0.);
+  if (material.specular_c == 0)
+    return vec4(0.);
   vec4 color = vec4(0.);
-  for(int i=0; i<material.specular_c; i++)
+  for (int i = 0; i < material.specular_c; i++)
     color += texture(material.specular[i], TexCoords);
   return color;
 }
 
 vec3 getMaterialNormal(Material material, vec2 TexCoords) {
-  if(material.normal_c == 0) return vec3(0.);
+  if (material.normal_c == 0)
+    return vec3(0.);
   vec4 color = vec4(0.);
-  for(int i=0; i<material.normal_c; i++)
+  for (int i = 0; i < material.normal_c; i++)
     color += texture(material.normal[i], TexCoords);
   return vec3(color);
+}
+
+float gaussian(vec2 i, float sigma) {
+  return 1.0 / (pi * pow2(sigma)) *
+         exp(-((pow2(i.x) + pow2(i.y)) / (2.0 * pow2(sigma))));
+}
+
+float lightShadowCaculation(Light light, vec3 normal, vec3 lightDir) {
+  if (light.shadowCast == 0)
+    return 0.0;
+
+  vec4 fragPosLightSpace = light.lightSpace * vec4(FragPos, 1.0);
+  vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+  projCoords = projCoords * 0.5 + 0.5;
+  float closestDepth = texture(light.shadowMap, projCoords.xy).r;
+  float currentDepth = projCoords.z;
+  float shadow = 0.;
+  float bias = 0.0005;  
+  int samples = 8;
+
+  vec2 texelSize = 1.0 / textureSize(light.shadowMap, 0);
+
+  float weight = 0., accmu = 0.;
+  float sigma = 4.;
+  for (int x = -samples / 2; x <= samples / 2; ++x) {
+    for (int y = -samples / 2; y <= samples / 2; ++y) {
+      float pcfDepth =
+          texture(light.shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+      weight = gaussian(vec2(x, y), sigma);
+      shadow += (currentDepth - bias > pcfDepth ? 1.0 : 0.0) * weight;
+      accmu += weight;
+    }
+  }
+  shadow /= accmu;
+  return shadow;
 }
 
 vec4 pointLight(Light light) {
@@ -75,21 +119,22 @@ vec4 pointLight(Light light) {
                              light.quadratic * (distance * distance));
 
   // Ambient
-  vec4 ambient = vec4(light.ambient, 1.0) * getMaterialDiffuseColor(material, TexCoords);
+  vec4 ambient =
+      vec4(light.ambient, 1.0) * getMaterialDiffuseColor(material, TexCoords);
   // Diffuse
   vec3 norm = normalize(Normal + getMaterialNormal(material, TexCoords));
   vec3 lightDir = normalize(light.position - FragPos);
   // vec3 lightDir = normalize(-light.direction);
 
   float diff = max(dot(norm, lightDir), 0.0);
-  vec4 diffuse =
-      vec4(light.diffuse, 1.0) * diff * getMaterialDiffuseColor(material, TexCoords);
+  vec4 diffuse = vec4(light.diffuse, 1.0) * diff *
+                 getMaterialDiffuseColor(material, TexCoords);
   // Specular
   vec3 viewDir = normalize(viewPos - FragPos);
   vec3 halfwayDir = normalize(lightDir + viewDir);
   float spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
-  vec4 specular =
-      vec4(light.specular, 1.0) * spec * getMaterialSpecularColor(material, TexCoords);
+  vec4 specular = vec4(light.specular, 1.0) * spec *
+                  getMaterialSpecularColor(material, TexCoords);
 
   return (ambient + diffuse + specular) * attenuation;
 }
@@ -105,38 +150,42 @@ vec4 spotLight(Light light) {
   float attenuation = 1.0 / (light.constant + light.linear * distance +
                              light.quadratic * (distance * distance));
   // Ambient
-  vec4 ambient = vec4(light.ambient, 1.0) * getMaterialDiffuseColor(material, TexCoords);
+  vec4 ambient =
+      vec4(light.ambient, 1.0) * getMaterialDiffuseColor(material, TexCoords);
   // Diffuse
   vec3 norm = normalize(Normal + getMaterialNormal(material, TexCoords));
 
   float diff = max(dot(norm, lightDir), 0.0);
-  vec4 diffuse =
-      vec4(light.diffuse, 1.0) * diff * getMaterialDiffuseColor(material, TexCoords);
+  vec4 diffuse = vec4(light.diffuse, 1.0) * diff *
+                 getMaterialDiffuseColor(material, TexCoords);
   // Specular
   vec3 viewDir = normalize(viewPos - FragPos);
   vec3 halfwayDir = normalize(lightDir + viewDir);
   float spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
-  vec4 specular =
-      vec4(light.specular, 1.0) * spec * getMaterialSpecularColor(material, TexCoords);
+  vec4 specular = vec4(light.specular, 1.0) * spec *
+                  getMaterialSpecularColor(material, TexCoords);
   return (ambient + (diffuse + specular) * intensity) * attenuation;
 }
 
 vec4 directionLight(Light light) {
-  vec4 ambient = vec4(light.ambient, 1.0) * getMaterialDiffuseColor(material, TexCoords);
+  vec4 ambient =
+      vec4(light.ambient, 1.0) * getMaterialDiffuseColor(material, TexCoords);
   // Diffuse
   vec3 norm = normalize(Normal + getMaterialNormal(material, TexCoords));
   vec3 lightDir = normalize(-light.direction);
 
   float diff = max(dot(norm, lightDir), 0.0);
-  vec4 diffuse =
-      vec4(light.diffuse, 1.0) * diff * getMaterialDiffuseColor(material, TexCoords);
+  vec4 diffuse = vec4(light.diffuse, 1.0) * diff *
+                 getMaterialDiffuseColor(material, TexCoords);
   // Specular
   vec3 viewDir = normalize(viewPos - FragPos);
   vec3 halfwayDir = normalize(lightDir + viewDir);
   float spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
-  vec4 specular =
-      vec4(light.specular, 1.0) * spec * getMaterialSpecularColor(material, TexCoords);
-  return ambient + diffuse + specular;
+  vec4 specular = vec4(light.specular, 1.0) * spec *
+                  getMaterialSpecularColor(material, TexCoords);
+
+  float shadow = lightShadowCaculation(light, norm, lightDir);
+  return ambient + (diffuse + specular) * (1. - shadow);
 }
 
 void main() {

@@ -98,8 +98,7 @@ void Light::setupShader(int index, int shadowMapIndex, Shader &shader) {
     return;
   }
 
-  std::string light_prefix =
-      std::string("lights[") + std::to_string(index) + "].";
+  std::string light_prefix = "light.";
   auto elestr = [&](std::string element) { return light_prefix + element; };
 
   shader.setVec3(elestr("position"), position);
@@ -122,7 +121,7 @@ void Light::setupShader(int index, int shadowMapIndex, Shader &shader) {
 
 void Light::initialize() {
   initialized = true;
-  if(shadowCast)
+  if (shadowCast)
     setupShadowMap();
 }
 
@@ -191,21 +190,30 @@ unsigned getLightVAO() {
 }
 
 void Lights::setupLightFBO() {
-  unsigned int FBO, map;
-  glGenFramebuffers(1, &FBO);
-  glGenTextures(1, &map);
-  glBindTexture(GL_TEXTURE_2D, map);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
-               GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glBindFramebuffer(GL_FRAMEBUFFER, FBO);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                         map, 0);
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glGenFramebuffers(1, &lightFBO);
+  glBindFramebuffer(GL_FRAMEBUFFER, lightFBO);
 
-  lightFBO = FBO;
-  lightMap = map;
+  glGenTextures(1, &gLightAlbedo);
+  glBindTexture(GL_TEXTURE_2D, gLightAlbedo);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
+               GL_RGBA, GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         gLightAlbedo, 0);
+  glGenTextures(1, &gLightSpec);
+  glBindTexture(GL_TEXTURE_2D, gLightSpec);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
+               GL_RGBA, GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D,
+                         gLightSpec, 0);
+
+  unsigned int attachments[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+  glDrawBuffers(2, attachments);
+
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void Lights::setupGBuffer() {

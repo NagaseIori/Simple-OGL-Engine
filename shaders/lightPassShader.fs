@@ -1,17 +1,17 @@
 #version 450 core
 #define LIGHT_MAX_COUNT 16
 #define pow2(x) (x * x)
+#define svec4(x) vec4(vec3(x), 0.)
 const highp float pi = 3.1415926535 * 2.;
 
 in vec2 TexCoords;
-out vec4 FragColor;
+layout(location = 0) out vec4 oDiffuse;
+layout(location = 1) out vec4 oSpecular;
 
 uniform vec3 viewPos;
 uniform int lightCount;
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;
-uniform sampler2D gAlbedo;
-uniform sampler2D gSpec;
 uniform float shininess;
 
 struct Light {
@@ -35,15 +35,14 @@ struct Light {
   int type; // 0 point 1 direction 2 spot
 };
 
-uniform Light lights[LIGHT_MAX_COUNT];
+uniform Light light;
 
 float gaussian(vec2 i, float sigma) {
   return 1.0 / (pi * pow2(sigma)) *
          exp(-((pow2(i.x) + pow2(i.y)) / (2.0 * pow2(sigma))));
 }
 
-float lightShadowCaculation(Light light, vec3 normal, vec3 lightDir,
-                            vec3 FragPos) {
+float lightShadowCaculation(vec3 normal, vec3 lightDir, vec3 FragPos) {
   if (light.shadowCast == 0)
     return 0.0;
 
@@ -74,7 +73,7 @@ float lightShadowCaculation(Light light, vec3 normal, vec3 lightDir,
   return shadow;
 }
 
-float pointLightShadowCaculation(Light light, vec3 fragPos) {
+float pointLightShadowCaculation(vec3 fragPos) {
   if (light.shadowCast == 0)
     return 0.0;
 
@@ -96,41 +95,38 @@ float pointLightShadowCaculation(Light light, vec3 fragPos) {
   // return shadow;
 }
 
-vec4 pointLight(Light light) {
+void pointLight() {
   vec3 FragPos = texture(gPosition, TexCoords).rgb;
   vec3 Normal = texture(gNormal, TexCoords).rgb;
-  vec4 Albedo = texture(gAlbedo, TexCoords);
-  vec4 Specular = vec4(texture(gSpec, TexCoords).rgb, 1.);
   // Attenuation
   float distance = length(light.position - FragPos);
   float attenuation = 1.0 / (light.constant + light.linear * distance +
                              light.quadratic * (distance * distance));
 
   // Ambient
-  vec4 ambient = vec4(light.ambient, 1.0) * Albedo;
+  vec4 ambient = vec4(light.ambient, 1.0);
   // Diffuse
   vec3 norm = normalize(Normal);
   vec3 lightDir = normalize(light.position - FragPos);
   // vec3 lightDir = normalize(-light.direction);
 
   float diff = max(dot(norm, lightDir), 0.0);
-  vec4 diffuse = vec4(light.diffuse, 1.0) * diff * Albedo;
+  vec4 diffuse = vec4(light.diffuse, 1.0) * diff;
   // Specular
   vec3 viewDir = normalize(viewPos - FragPos);
   vec3 halfwayDir = normalize(lightDir + viewDir);
   float spec = pow(max(dot(norm, halfwayDir), 0.0), shininess);
-  vec4 specular = vec4(light.specular, 1.0) * spec * Specular;
+  vec4 specular = vec4(light.specular, 1.0) * spec;
 
   // float shadow = pointLightShadowCaculation(light, FragPos);
 
-  return (ambient + diffuse + specular) * attenuation;
+  oDiffuse = svec4((diffuse + ambient) * attenuation);
+  oSpecular = svec4(specular * attenuation);
 }
 
-vec4 spotLight(Light light) {
+void spotLight() {
   vec3 FragPos = texture(gPosition, TexCoords).rgb;
   vec3 Normal = texture(gNormal, TexCoords).rgb;
-  vec4 Albedo = texture(gAlbedo, TexCoords);
-  vec4 Specular = vec4(texture(gSpec, TexCoords).rgb, 1.);
   vec3 lightDir = normalize(light.position - FragPos);
   // Soft Outer Shadow
   float theta = dot(lightDir, normalize(-light.direction));
@@ -141,55 +137,49 @@ vec4 spotLight(Light light) {
   float attenuation = 1.0 / (light.constant + light.linear * distance +
                              light.quadratic * (distance * distance));
   // Ambient
-  vec4 ambient = vec4(light.ambient, 1.0) * Albedo;
+  vec4 ambient = vec4(light.ambient, 1.0);
   // Diffuse
   vec3 norm = normalize(Normal);
 
   float diff = max(dot(norm, lightDir), 0.0);
-  vec4 diffuse = vec4(light.diffuse, 1.0) * diff * Albedo;
+  vec4 diffuse = vec4(light.diffuse, 1.0) * diff;
   // Specular
   vec3 viewDir = normalize(viewPos - FragPos);
   vec3 halfwayDir = normalize(lightDir + viewDir);
   float spec = pow(max(dot(norm, halfwayDir), 0.0), shininess);
-  vec4 specular = vec4(light.specular, 1.0) * spec * Specular;
+  vec4 specular = vec4(light.specular, 1.0) * spec;
 
-  float shadow = lightShadowCaculation(light, norm, lightDir, FragPos);
-  return (ambient + (diffuse + specular) * intensity * (1. - shadow)) *
-         attenuation;
+  float shadow = lightShadowCaculation(norm, lightDir, FragPos);
+  oDiffuse = svec4((ambient + diffuse * intensity * (1. - shadow)) * attenuation);
+  oSpecular = svec4(specular * intensity * (1. - shadow) * attenuation);
 }
 
-vec4 directionLight(Light light) {
+void directionLight() {
   vec3 FragPos = texture(gPosition, TexCoords).rgb;
   vec3 Normal = texture(gNormal, TexCoords).rgb;
-  vec4 Albedo = texture(gAlbedo, TexCoords);
-  vec4 Specular = vec4(texture(gSpec, TexCoords).rgb, 1.);
-  vec4 ambient = vec4(light.ambient, 1.0) * Albedo;
+  vec4 ambient = vec4(light.ambient, 1.0);
   // Diffuse
   vec3 norm = normalize(Normal);
   vec3 lightDir = normalize(-light.direction);
 
   float diff = max(dot(lightDir, norm), 0.0);
-  vec4 diffuse = vec4(light.diffuse, 1.0) * diff * Albedo;
+  vec4 diffuse = vec4(light.diffuse, 1.0) * diff;
   // Specular
   vec3 viewDir = normalize(viewPos - FragPos);
   vec3 halfwayDir = normalize(lightDir + viewDir);
   float spec = pow(max(dot(norm, halfwayDir), 0.0), shininess);
-  vec4 specular = vec4(light.specular, 1.0) * spec * Specular;
+  vec4 specular = vec4(light.specular, 1.0) * spec;
 
-  float shadow = lightShadowCaculation(light, norm, lightDir, FragPos);
-  return ambient + (diffuse + specular) * (1. - shadow);
-  // return vec4(norm, 1.);
+  float shadow = lightShadowCaculation(norm, lightDir, FragPos);
+  oDiffuse = svec4(ambient + diffuse * (1. - shadow));
+  oSpecular = svec4(specular * (1. - shadow));
 }
 
 void main() {
-  vec4 color = vec4(0.);
-  for (int i = 0; i < lightCount; i++) {
-    if (lights[i].type == 0)
-      color += pointLight(lights[i]);
-    if (lights[i].type == 1)
-      color += directionLight(lights[i]);
-    if (lights[i].type == 2)
-      color += spotLight(lights[i]);
-  }
-  FragColor = color;
+  if (light.type == 0)
+    pointLight();
+  if (light.type == 1)
+    directionLight();
+  if (light.type == 2)
+    spotLight();
 }

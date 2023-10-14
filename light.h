@@ -190,7 +190,8 @@ public:
   Shader pointDepthShader;
   Shader gBufferShader;
   Shader lightPassShader;
-  unsigned int lightVAO, lightFBO, lightMap;
+  Shader lightFinalShader;
+  unsigned int lightVAO, lightFBO, gLightAlbedo, gLightSpec;
   unsigned int gBuffer;
   unsigned int gPosition, gNormal, gAlbedo, gSpec, rboDepth;
   unsigned int quadVAO;
@@ -215,20 +216,10 @@ public:
     lightPassShader.use();
     lightPassShader.setInt("gPosition", 0);
     lightPassShader.setInt("gNormal", 1);
-    lightPassShader.setInt("gAlbedo", 2);
-    lightPassShader.setInt("gSpec", 3);
     lightPassShader.setVec3("viewPos", viewPos);
     lightPassShader.setFloat("shininess", 2.0f);
-    lightPassShader.setInt("lightCount", lights.size());
-    for (int i = 0; i < lights.size(); i++) {
-      glActiveTexture(GL_TEXTURE5 + i);
-      glBindTexture(lights[i].type != POINT ? GL_TEXTURE_2D
-                                            : GL_TEXTURE_CUBE_MAP,
-                    lights[i].shadowMap);
-      lights[i].setupShader(i, 5 + i, lightPassShader);
-    }
 
-    // Render G-Buffer
+    // First-pass: Geometry info -> gBuffer
     // glDisable(GL_BLEND); // Disable blend for g-buffer
     glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
     glClearColor(0.0, 0.0, 0.0,
@@ -240,19 +231,39 @@ public:
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     // glEnable(GL_BLEND); // Re-enable blend
 
-    // Render Lightpass
-    glBindFramebuffer(GL_FRAMEBUFFER, targetFBO);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // Second-pass: Light info -> lightMap
+    glBlendFunc(GL_ONE, GL_ONE); // set blendmode to add
+    glBindFramebuffer(GL_FRAMEBUFFER, lightFBO);
+    glClear(GL_COLOR_BUFFER_BIT);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gPosition);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, gNormal);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, gAlbedo);
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, gSpec);
     // also send light relevant uniforms
     lightPassShader.use();
+    for (int i = 0; i < lights.size(); i++) {
+      glActiveTexture(GL_TEXTURE30);
+      glBindTexture(lights[i].type != POINT ? GL_TEXTURE_2D
+                                            : GL_TEXTURE_CUBE_MAP,
+                    lights[i].shadowMap);
+      lights[i].setupShader(i, 30, lightPassShader);
+      renderQuad(quadVAO);
+    }
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // reset blendmode to normal
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Third-pass: lightMap -> target
+    lightFinalShader.use();
+    glBindFramebuffer(GL_FRAMEBUFFER, targetFBO);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, gAlbedo);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, gSpec);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, gLightAlbedo);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, gLightSpec);
     renderQuad(quadVAO);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -285,11 +296,19 @@ public:
         pointDepthShader("point_light_depth.vs", "point_light_depth.fs",
                          "point_light_depth.gs"),
         gBufferShader("gBufferShader.vs", "gBufferShader.fs"),
-        lightPassShader("lightPassShader.vs", "lightPassShader.fs") {
+        lightPassShader("lightPassShader.vs", "lightPassShader.fs"),
+        lightFinalShader("lightFinalShader.vs", "lightFinalShader.fs") {
     lightVAO = getLightVAO();
     quadVAO = getQuadVAO();
     setupGBuffer();
     setupLightFBO();
+
+    // Configure shader
+    lightFinalShader.use();
+    lightFinalShader.setInt("gAlbedo", 0);
+    lightFinalShader.setInt("gSpec", 1);
+    lightFinalShader.setInt("gLightAlbedo", 2);
+    lightFinalShader.setInt("gLightSpec", 3);
   }
 };
 

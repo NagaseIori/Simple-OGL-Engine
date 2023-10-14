@@ -28,7 +28,7 @@ float lastX = WINDOW_WIDTH / 2., lastY = WINDOW_HEIGHT / 2.;
 float spotLightEnabled = 1.0;
 bool depthDebug = false;
 int debugSurface = 0;
-const int DEBUG_SRUFACES = 5;
+const int DEBUG_SRUFACES = 6;
 
 Camera mainCam(30.f, 30.f, 3.f, 0.f, 1.f, 0.f, -135.f, -45.f);
 
@@ -165,8 +165,8 @@ void setupScreenFBO(const unsigned int FBO, unsigned int &texture_o) {
   glGenTextures(1, &texture);
   glBindTexture(GL_TEXTURE_2D, texture);
 
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RGB,
-               GL_UNSIGNED_BYTE, NULL);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RGB,
+               GL_FLOAT, NULL);
 
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -414,7 +414,8 @@ void Scene1(GLFWwindow *window) {
                                                  1.0f, 0.1f, LIGHT_FAR_PLANE);
     // spotLight.setSpotlightProjection(glm::radians(35.f), 1, 0.1f,
     // LIGHT_FAR_PLANE);
-    lightSystem.lights[0].setPosition(mainCam.Position + spotLightOffset);
+    glm::vec3 spotLightPos = mainCam.Position + spotLightOffset;
+    lightSystem.lights[0].setPosition(spotLightPos);
     lightSystem.lights[0].setDirection(mainCam.Front);
 
     /// Point Lights
@@ -508,6 +509,12 @@ void Scene1(GLFWwindow *window) {
         break;
       case 4:
         glBindTexture(GL_TEXTURE_2D, lightSystem.gSpec);
+        break;
+      case 5:
+        glBindTexture(GL_TEXTURE_2D, lightSystem.gLightAlbedo);
+        break;
+      case 6:
+        glBindTexture(GL_TEXTURE_2D, lightSystem.gLightSpec);
         break;
       default:
         break;

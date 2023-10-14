@@ -2,6 +2,7 @@
 #define LIGHT_MAX_COUNT 16
 #define pow2(x) (x * x)
 #define svec4(x) vec4(vec3(x), 0.)
+// #define svec4(x) (x)
 const highp float pi = 3.1415926535 * 2.;
 
 in vec2 TexCoords;
@@ -81,21 +82,20 @@ float pointLightShadowCaculation(vec3 fragPos) {
     return 0.0;
 
   // get vector between fragment position and light position
-  // vec3 fragToLight = fragPos - light.position;
-  // // use the light to fragment vector to sample from the depth map
-  // float closestDepth = texture(light.cubeMap, fragToLight).r;
-  // // it is currently in linear range between [0,1]. Re-transform back to
-  // // original value
-  // closestDepth *= light.cutOff;
-  // // now get current linear depth as the length between the fragment and
-  // light
-  // // position
-  // float currentDepth = length(fragToLight);
-  // // now test for shadows
-  // float bias = 0.0005;
-  // float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+  vec3 fragToLight = fragPos - light.position;
+  // use the light to fragment vector to sample from the depth map
+  float closestDepth = texture(light.cubeMap, fragToLight).r;
+  // it is currently in linear range between [0,1]. Re-transform back to
+  // original value
+  closestDepth *= light.cutOff;
+  // now get current linear depth as the length between the fragment and
+  // light position
+  float currentDepth = length(fragToLight);
+  // now test for shadows
+  float bias = 0.0005;
+  float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
 
-  // return shadow;
+  return shadow;
 }
 
 void pointLight() {
@@ -103,7 +103,7 @@ void pointLight() {
   vec3 Normal = texture(gNormal, TexCoords).rgb;
   // Attenuation
   float distance = length(light.position - FragPos);
-  if(distance > light.radius)
+  if (distance > light.radius)
     discard;
   float attenuation = 1.0 / (light.constant + light.linear * distance +
                              light.quadratic * (distance * distance));
@@ -123,7 +123,7 @@ void pointLight() {
   float spec = pow(max(dot(norm, halfwayDir), 0.0), shininess);
   vec4 specular = vec4(light.specular, 1.0) * spec;
 
-  // float shadow = pointLightShadowCaculation(light, FragPos);
+  float shadow = pointLightShadowCaculation(FragPos);
 
   oDiffuse = svec4((diffuse + ambient) * attenuation);
   oSpecular = svec4(specular * attenuation);
@@ -135,7 +135,7 @@ void spotLight() {
   vec3 lightDir = normalize(light.position - FragPos);
   // Attenuation
   float distance = length(light.position - FragPos);
-  if(distance > light.radius)
+  if (distance > light.radius)
     discard;
   float attenuation = 1.0 / (light.constant + light.linear * distance +
                              light.quadratic * (distance * distance));
@@ -157,7 +157,8 @@ void spotLight() {
   vec4 specular = vec4(light.specular, 1.0) * spec;
 
   float shadow = lightShadowCaculation(norm, lightDir, FragPos);
-  oDiffuse = svec4((ambient + diffuse * intensity * (1. - shadow)) * attenuation);
+  oDiffuse =
+      svec4((ambient + diffuse * intensity * (1. - shadow)) * attenuation);
   oSpecular = svec4(specular * intensity * (1. - shadow) * attenuation);
 }
 

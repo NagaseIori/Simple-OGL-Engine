@@ -29,6 +29,7 @@ float spotLightEnabled = 1.0;
 bool depthDebug = false;
 int debugSurface = 0;
 const int DEBUG_SRUFACES = 6;
+float exposure = 2.0;
 
 Camera mainCam(30.f, 30.f, 3.f, 0.f, 1.f, 0.f, -135.f, -45.f);
 
@@ -40,8 +41,11 @@ void scroll_callback(GLFWwindow *window, double xoff, double yoff) {
   if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
     debugSurface = debugSurface - yoff + DEBUG_SRUFACES + 1;
     debugSurface %= DEBUG_SRUFACES + 1;
-  } else {
-
+  } else if(glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) {
+    exposure += yoff * 0.25;
+    exposure = glm::clamp(exposure, 0.1f, 100.f);
+  }
+  else {
     mainCam.ProcessMouseScroll(yoff);
   }
 }
@@ -300,7 +304,7 @@ void Scene1(GLFWwindow *window) {
   /// Directional Light
   dirLight.setType(DIRECTIONAL);
   dirLight.setPosition({150.f, 300.f, 150.f});
-  dirLight.setColorRatio(1, 0.1, 0);
+  dirLight.setColorRatio(1.3, 0.02, 0);
   dirLight.setColor(RGBColor(104, 104, 134));
   dirLight.setDirection({-0.5, -1, -0.15});
 #define DIR_RANGE 400.f
@@ -311,7 +315,7 @@ void Scene1(GLFWwindow *window) {
   for (auto pos : pointLightPositions) {
     Light pointLight;
     pointLight.setType(POINT);
-    pointLight.setColorRatio(0.5, 0.2, 1);
+    pointLight.setColorRatio(0.5, 0.01, 1);
     pointLight.setAttenuation(1, 0.35, 0.44);
     lightSystem.addLight(pointLight);
   }
@@ -328,6 +332,7 @@ void Scene1(GLFWwindow *window) {
   glGenFramebuffers(1, &screenFBO);
   setupScreenFBO(screenFBO, screenTex);
   Shader screenShader("screen.vs", "screen.fs");
+  Shader HDRShader("HDR.vs", "HDR.fs");
   quadVAO = getQuadVAO();
 
   // Load Cubemaps
@@ -483,14 +488,16 @@ void Scene1(GLFWwindow *window) {
     glClearColor(.0f, 1.0f, .0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    screenShader.use();
-    screenShader.setInt("screenTexture", 0);
+    HDRShader.use();
+    HDRShader.setInt("screenTexture", 0);
+    HDRShader.setFloat("exposure", exposure);
     glDisable(GL_DEPTH_TEST);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, screenTex);
     renderQuad(quadVAO);
 
     if (debugSurface) {
+      screenShader.use();
       // depthDebugShader.use();
       // depthDebugShader.setInt("type", 0);
       // depthDebugShader.setFloat("near_plane", 0.1f);
@@ -559,7 +566,7 @@ int main() {
   glfwSetScrollCallback(window, scroll_callback);
   glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetCursorPosCallback(window, mouse_callback);
-  glEnable(GL_FRAMEBUFFER_SRGB); // Gamma Correction for now
+  // glEnable(GL_FRAMEBUFFER_SRGB); // Gamma Correction for now
 
   // Enable Blending
   // --------------

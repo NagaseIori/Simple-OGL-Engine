@@ -294,7 +294,7 @@ void Scene1(GLFWwindow *window) {
   spotLight.setColor(glm::vec3(1.f));
   spotLight.setSpotlightProjection(glm::radians(35.f), 1, 0.1f,
                                    LIGHT_FAR_PLANE);
-  spotLight.setMapResolution(1024, 1024);
+  spotLight.setMapResolution(2048, 2048);
   lightSystem.addLight(spotLight);
 
   /// Directional Light

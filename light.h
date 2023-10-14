@@ -154,9 +154,9 @@ public:
   }
 
   void setMapResolution(unsigned int width, unsigned int height) {
-    if (initialized) {
+    if (shadowMapInited) {
       cout << "::ERROR:: You cannot set shadow map resolution after "
-              "initialization"
+              "shadowMap's initialization"
            << endl;
       return;
     }
@@ -169,6 +169,7 @@ private:
   glm::mat4 lightSpaceMatrix;
   std::vector<glm::mat4> shadowTransforms;
   bool initialized = false;
+  bool shadowMapInited = false;
   bool shadowCast = false;
   float farPlane;
   unsigned int shadowWidth = SHADOW_WIDTH, shadowHeight = SHADOW_HEIGHT;
@@ -228,7 +229,7 @@ public:
     }
 
     // Render G-Buffer
-    glDisable(GL_BLEND); // Disable blend for g-buffer
+    // glDisable(GL_BLEND); // Disable blend for g-buffer
     glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
     glClearColor(0.0, 0.0, 0.0,
                  1.0); // keep it black so it doesn't leak into g-buffer
@@ -237,7 +238,7 @@ public:
     transformation(gBufferShader);
     renderScene(gBufferShader);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glEnable(GL_BLEND); // Re-enable blend
+    // glEnable(GL_BLEND); // Re-enable blend
 
     // Render Lightpass
     glBindFramebuffer(GL_FRAMEBUFFER, targetFBO);

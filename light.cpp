@@ -40,9 +40,14 @@ void Light::updateSpaceMatrix() {
   default:
     break;
   }
+  setupShadowMap();
 }
 
 void Light::setupShadowMap() {
+  if (shadowMapInited)
+    return;
+  if (!initialized)
+    return;
   unsigned int depthMapFBO;
   glGenFramebuffers(1, &depthMapFBO);
   unsigned int depthMap;
@@ -84,6 +89,7 @@ void Light::setupShadowMap() {
 
   shadowFBO = depthMapFBO;
   shadowMap = depthMap;
+  shadowMapInited = true;
 }
 
 void Light::setupShader(int index, int shadowMapIndex, Shader &shader) {
@@ -115,8 +121,9 @@ void Light::setupShader(int index, int shadowMapIndex, Shader &shader) {
 }
 
 void Light::initialize() {
-  setupShadowMap();
   initialized = true;
+  if(shadowCast)
+    setupShadowMap();
 }
 
 void Light::updateModelMatrix() {
@@ -233,8 +240,8 @@ void Lights::setupGBuffer() {
                          gAlbedo, 0);
   glGenTextures(1, &gSpec);
   glBindTexture(GL_TEXTURE_2D, gSpec);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
-               GL_RGB, GL_UNSIGNED_BYTE, NULL);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
+               GL_RGBA, GL_UNSIGNED_BYTE, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D,

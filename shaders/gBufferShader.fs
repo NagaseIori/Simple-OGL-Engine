@@ -1,9 +1,9 @@
 #version 450 core
 #define MATERIAL_MAX_COUNT 32
-layout(location = 0) out vec3 gPosition;
-layout(location = 1) out vec3 gNormal;
+layout(location = 0) out vec4 gPosition;
+layout(location = 1) out vec4 gNormal;
 layout(location = 2) out vec4 gAlbedo;
-layout(location = 3) out vec3 gSpec;
+layout(location = 3) out vec4 gSpec;
 
 in vec2 TexCoords;
 in vec3 FragPos;
@@ -32,22 +32,24 @@ void main() {
   // store specular intensity in gAlbedoSpec's alpha component
   // gSpec = texture(material.specular[0], TexCoords).rgb;
   vec4 albedo = vec4(0.);
-  vec3 spec = vec3(0.);
+  vec4 spec = vec4(0.);
   vec3 normal = vec3(0.);
 
   for (int i = 0; i < material.diffuse_c; i++) {
     albedo += texture(material.diffuse[i], TexCoords);
   }
+  if(albedo.a < 0.1)
+    discard;
   for (int i = 0; i < material.specular_c; i++) {
-    spec += texture(material.specular[i], TexCoords).rgb;
+    spec += texture(material.specular[i], TexCoords);
   }
   for (int i = 0; i < material.normal_c; i++) {
     normal += texture(material.normal[i], TexCoords).rgb;
   }
   normal = normalize(normal+Normal);
 
-  gPosition = FragPos;
-  gNormal = normal;
+  gPosition = vec4(FragPos, 1.);
+  gNormal = vec4(normal, 1.);
   gAlbedo = albedo;
-  gSpec = spec;
+  gSpec = vec4(spec.rgb, albedo.a);
 }

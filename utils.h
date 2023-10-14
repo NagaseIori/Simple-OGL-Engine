@@ -13,6 +13,6 @@ glm::vec3 RGBColor(float R, float G, float B);
 
 unsigned int getQuadVAO();
 
-void renderQuad(int VAO);
+void renderQuad();
 
 #endif

@@ -29,7 +29,8 @@ unsigned int getQuadVAO() {
   return VAO;
 }
 
-void renderQuad(int VAO) {
-  glBindVertexArray(VAO);
+void renderQuad() {
+  unsigned int quadVAO = getQuadVAO();
+  glBindVertexArray(quadVAO);
   glDrawArrays(GL_TRIANGLES, 0, 6);
 }

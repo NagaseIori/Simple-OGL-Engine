@@ -194,7 +194,6 @@ private:
 class Lights {
 private:
   Shader depthShader;
-  Shader lightShader;
   Shader lightSourceShader;
   Shader pointDepthShader;
   Shader gBufferShader;
@@ -207,7 +206,6 @@ public:
   unsigned int lightVAO, lightFBO, gLightAlbedo, gLightSpec;
   unsigned int gBuffer;
   unsigned int gPosition, gNormal, gAlbedo, gSpec, rboDepth;
-  unsigned int quadVAO;
   vector<Light> lights;
 
   void addLight(Light light) {
@@ -260,7 +258,7 @@ public:
                     lights[i].shadowMap);
       lights[i].setupShader(i, 10 + (lights[i].type == POINT ? 1 : 0),
                             lightPassShader);
-      renderQuad(quadVAO);
+      renderQuad();
     }
     glBlendFunc(GL_SRC_ALPHA,
                 GL_ONE_MINUS_SRC_ALPHA); // reset blendmode to normal
@@ -278,7 +276,7 @@ public:
     glBindTexture(GL_TEXTURE_2D, gLightAlbedo);
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, gLightSpec);
-    renderQuad(quadVAO);
+    renderQuad();
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Copy Depth Buffer
@@ -305,7 +303,6 @@ public:
 
   Lights()
       : depthShader("simpleDepthShader.vs", "simpleDepthShader.fs"),
-        lightShader("light.vs", "light_v2.fs"),
         lightSourceShader("light.vs", "light_source.fs"),
         pointDepthShader("point_light_depth.vs", "point_light_depth.fs",
                          "point_light_depth.gs"),
@@ -313,7 +310,6 @@ public:
         lightPassShader("lightPassShader.vs", "lightPassShader.fs"),
         lightFinalShader("lightFinalShader.vs", "lightFinalShader.fs") {
     lightVAO = getLightVAO();
-    quadVAO = getQuadVAO();
     setupGBuffer();
     setupLightFBO();
 

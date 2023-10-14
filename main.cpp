@@ -28,9 +28,9 @@ float lastX = WINDOW_WIDTH / 2., lastY = WINDOW_HEIGHT / 2.;
 float spotLightEnabled = 1.0;
 bool depthDebug = false;
 int debugSurface = 0;
-const int DEBUG_SRUFACES = 6;
+const int DEBUG_SRUFACES = 8;
 float exposure = 2.0;
-bool pointShadow = false;
+bool pointShadow = POINT_SHADOW_START_ENABLED;
 
 float windowWidth = WINDOW_WIDTH, windowHeight = WINDOW_HEIGHT;
 
@@ -176,36 +176,71 @@ void drawAxis(Shader &shader, unsigned int AxisVAO) {
 void setupScreenFBO(const unsigned int FBO, unsigned int &texture_o) {
   glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 
-  unsigned int texture;
-  glGenTextures(1, &texture);
-  glBindTexture(GL_TEXTURE_2D, texture);
-
+  glGenTextures(1, &texture_o);
+  glBindTexture(GL_TEXTURE_2D, texture_o);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
                GL_RGB, GL_FLOAT, NULL);
-
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                         texture, 0);
-
   unsigned int rbo;
   glGenRenderbuffers(1, &rbo);
-
   glBindRenderbuffer(GL_RENDERBUFFER, rbo);
   glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, WINDOW_WIDTH,
                         WINDOW_HEIGHT);
-  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
-                            GL_RENDERBUFFER, rbo);
 
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
                             GL_RENDERBUFFER, rbo);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         texture_o, 0);
 
   if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!"
               << std::endl;
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  texture_o = texture;
+}
+
+void setupHdrFBO(unsigned int &hdrFBO, unsigned int &texture_out,
+                 unsigned int &texture_bloom) {
+  glGenFramebuffers(1, &hdrFBO);
+  glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+
+  glGenTextures(1, &texture_out);
+  glBindTexture(GL_TEXTURE_2D, texture_out);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
+               GL_RGB, GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+  glGenTextures(1, &texture_bloom);
+  glBindTexture(GL_TEXTURE_2D, texture_bloom);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
+               GL_RGB, GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         texture_bloom, 0);
+
+  unsigned int rbo;
+  glGenRenderbuffers(1, &rbo);
+  glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, WINDOW_WIDTH,
+                        WINDOW_HEIGHT);
+
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+                            GL_RENDERBUFFER, rbo);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         texture_out, 0);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D,
+                         texture_bloom, 0);
+
+  unsigned int attachments[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+  glDrawBuffers(2, attachments);
+
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!"
+              << std::endl;
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 unsigned int loadCubemap(vector<std::string> faces) {
@@ -270,6 +305,50 @@ unsigned int getSkyboxVAO() {
   return VAO;
 }
 
+unsigned int bloomBlurProcess(unsigned int bloomTex) {
+  static Shader shaderBlur("bloomBlur.vs", "bloomBlur.fs");
+  static bool init = true;
+  static unsigned int pingpongFBO[2];
+  static unsigned int pingpongBuffer[2];
+  if(init) {
+    glGenFramebuffers(2, pingpongFBO);
+    glGenTextures(2, pingpongBuffer);
+    for (unsigned int i = 0; i < 2; i++) {
+      glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
+      glBindTexture(GL_TEXTURE_2D, pingpongBuffer[i]);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
+                  GL_RGBA, GL_FLOAT, NULL);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                            pingpongBuffer[i], 0);
+    }
+    init = false;
+  }
+
+  bool horizontal = true, first_iteration = true;
+  int amount = 10;
+  shaderBlur.use();
+  shaderBlur.setFloat("sigma", BLOOM_SIGMA);
+  shaderBlur.setFloat("scale", BLOOM_SCALE);
+  shaderBlur.setInt("samples", BLOOM_SAMPLES);
+  for (unsigned int i = 0; i < amount; i++) {
+    glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
+    shaderBlur.setInt("horizontal", horizontal);
+    glBindTexture(GL_TEXTURE_2D, first_iteration
+                                     ? bloomTex
+                                     : pingpongBuffer[!horizontal]);
+    renderQuad();
+    horizontal = !horizontal;
+    if (first_iteration)
+      first_iteration = false;
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  return pingpongBuffer[!horizontal];
+}
+
 void Scene1(GLFWwindow *window) {
   // Shaders compilation
   // ------------------
@@ -315,7 +394,7 @@ void Scene1(GLFWwindow *window) {
   /// Directional Light
   dirLight.setType(DIRECTIONAL);
   dirLight.setPosition({150.f, 300.f, 150.f});
-  dirLight.setColorRatio(0.15, 0.1, 0);
+  dirLight.setColorRatio(0.3, 0.1, 0);
   dirLight.setColor(RGBColor(81, 104, 134));
   dirLight.setDirection({-0.5, -1, -0.15});
 #define DIR_RANGE 400.f
@@ -351,6 +430,15 @@ void Scene1(GLFWwindow *window) {
   Shader screenShader("screen.vs", "screen.fs");
   Shader HDRShader("HDR.vs", "HDR.fs");
   quadVAO = getQuadVAO();
+
+  // Setup HDR & Bloom FBO
+  // ------------------
+  Shader HDRBloomFinalShader("HDRBloomFinal.vs", "HDRBloomFinal.fs");
+  HDRBloomFinalShader.use();
+  HDRBloomFinalShader.setInt("scene", 0);
+  HDRBloomFinalShader.setInt("bloomBlur", 1);
+  unsigned int hdrFBO, hdrTex, bloomTex;
+  setupHdrFBO(hdrFBO, hdrTex, bloomTex);
 
   // Load Cubemaps
   // ------------------
@@ -408,7 +496,8 @@ void Scene1(GLFWwindow *window) {
     modelPaimon.Draw(shader);
 
     // Draw Gaki
-    model = glm::translate(glm::mat4(1.f), glm::vec3(-20.f, GROUND_YOFFSET, 0.f));
+    model =
+        glm::translate(glm::mat4(1.f), glm::vec3(-20.f, GROUND_YOFFSET, 0.f));
     model = glm::scale(model, glm::vec3(10.f));
     shader.setMat4("model", model);
     modelGaki.Draw(shader);
@@ -510,17 +599,38 @@ void Scene1(GLFWwindow *window) {
     // Post-rendering
     // -----------------
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
-    glClearColor(.0f, 1.0f, .0f, 1.0f);
+    glClearColor(.2f, .2f, .2f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glViewport(0, 0, windowWidth, windowHeight);
 
+    // HDR & Exposure & Bloom
+    // -----------------
+    // Extract Color
+    glDisable(GL_BLEND);
+    glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
     HDRShader.use();
     HDRShader.setInt("screenTexture", 0);
-    HDRShader.setFloat("exposure", exposure);
+    HDRShader.setFloat("threshold", BLOOM_THRESHOLD);
+    HDRShader.setFloat("bound_ratio", BLOOM_BOUND_RATIO);
     glDisable(GL_DEPTH_TEST);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, screenTex);
-    renderQuad(quadVAO);
+    renderQuad();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Gaussian Blur
+    unsigned int blurredTex = bloomBlurProcess(bloomTex);
+
+    // Render final bloom result
+    HDRBloomFinalShader.use();
+    HDRBloomFinalShader.setFloat("exposure", exposure);
+    HDRBloomFinalShader.setFloat("bloomStrength", BLOOM_STRENGTH);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, hdrTex);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, blurredTex);
+    renderQuad();
 
     if (debugSurface) {
       screenShader.use();
@@ -549,13 +659,20 @@ void Scene1(GLFWwindow *window) {
       case 6:
         glBindTexture(GL_TEXTURE_2D, lightSystem.gLightSpec);
         break;
+      case 7:
+        glBindTexture(GL_TEXTURE_2D, bloomTex);
+        break;
+      case 8:
+        glBindTexture(GL_TEXTURE_2D, blurredTex);
+        break;
       default:
         break;
       }
-      renderQuad(quadVAO);
+      renderQuad();
       glEnable(GL_BLEND);
     }
 
+    glEnable(GL_BLEND);
     glBindVertexArray(0);
     glfwSwapBuffers(window);
     glfwPollEvents();

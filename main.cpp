@@ -30,26 +30,37 @@ bool depthDebug = false;
 int debugSurface = 0;
 const int DEBUG_SRUFACES = 6;
 float exposure = 2.0;
+bool pointShadow = true;
+
+float windowWidth = WINDOW_WIDTH, windowHeight = WINDOW_HEIGHT;
 
 Camera mainCam(30.f, 30.f, 3.f, 0.f, 1.f, 0.f, -135.f, -45.f);
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
   glViewport(0, 0, width, height);
+  windowWidth = width;
+  windowHeight = height;
 }
 
 void scroll_callback(GLFWwindow *window, double xoff, double yoff) {
   if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
     debugSurface = debugSurface - yoff + DEBUG_SRUFACES + 1;
     debugSurface %= DEBUG_SRUFACES + 1;
-  } else if(glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) {
+  } else if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) {
     exposure += yoff * 0.25;
     exposure = glm::clamp(exposure, 0.1f, 100.f);
-  }
-  else {
+  } else {
     mainCam.ProcessMouseScroll(yoff);
   }
 }
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
+
+void key_callback(GLFWwindow *window, int key, int scancode, int action,
+                  int mods) {
+  if (key == GLFW_KEY_KP_0 && action == GLFW_PRESS) {
+    pointShadow = !pointShadow;
+  }
+}
 
 void process_input(GLFWwindow *window) {
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
@@ -169,8 +180,8 @@ void setupScreenFBO(const unsigned int FBO, unsigned int &texture_o) {
   glGenTextures(1, &texture);
   glBindTexture(GL_TEXTURE_2D, texture);
 
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RGB,
-               GL_FLOAT, NULL);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
+               GL_RGB, GL_FLOAT, NULL);
 
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -207,8 +218,8 @@ unsigned int loadCubemap(vector<std::string> faces) {
     unsigned char *data =
         stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
     if (data) {
-      glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height,
-                   0, GL_RGB, GL_UNSIGNED_BYTE, data);
+      glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_SRGB_ALPHA, width,
+                   height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
       stbi_image_free(data);
     } else {
       std::cout << "Cubemap texture failed to load at path: " << faces[i]
@@ -304,26 +315,30 @@ void Scene1(GLFWwindow *window) {
   /// Directional Light
   dirLight.setType(DIRECTIONAL);
   dirLight.setPosition({150.f, 300.f, 150.f});
-  dirLight.setColorRatio(1.3, 0.02, 0);
-  dirLight.setColor(RGBColor(104, 104, 134));
+  dirLight.setColorRatio(0.15, 0.1, 0);
+  dirLight.setColor(RGBColor(81, 104, 134));
   dirLight.setDirection({-0.5, -1, -0.15});
 #define DIR_RANGE 400.f
   dirLight.setDirectionalProjection(-DIR_RANGE, DIR_RANGE, -DIR_RANGE,
                                     DIR_RANGE, 0.1f, LIGHT_FAR_PLANE);
   lightSystem.addLight(dirLight);
   /// Point Lights
-  for (auto pos : pointLightPositions) {
+  for (int i = 0; i < pointLightPositions.size(); i++) {
     Light pointLight;
     pointLight.setType(POINT);
-    pointLight.setColorRatio(0.5, 0.01, 1);
+    pointLight.setColorRatio(0.1, 0.001, 1);
     pointLight.setAttenuation(1, 0.35, 0.44);
+    pointLight.setMapResolution(POINT_LIGHT_SHADOWMAP_RESOLUTION,
+                                POINT_LIGHT_SHADOWMAP_RESOLUTION);
+    if (i < RANDOM_LIGHT_WITH_SHADOW)
+      pointLight.setPointProjection(0.1f, 400.f);
     lightSystem.addLight(pointLight);
   }
 
   // Load Models
   // ------------------
   Model modelBag("model/backpack/backpack.obj");
-  // Model modelGirl("model/girl/girl.usdc");
+  Model modelGirl("model/girl/girl.obj");
   Model modelSponza("model/sponza/sponza.obj");
 
   // Setup Screen Framebuffer & Shader
@@ -337,9 +352,9 @@ void Scene1(GLFWwindow *window) {
 
   // Load Cubemaps
   // ------------------
-  vector<std::string> faces{"skybox/right.jpg", "skybox/left.jpg",
-                            "skybox/top.jpg",   "skybox/bottom.jpg",
-                            "skybox/front.jpg", "skybox/back.jpg"};
+  vector<std::string> faces{"night/right.png", "night/left.png",
+                            "night/top.png",   "night/bottom.png",
+                            "night/front.png", "night/back.png"};
   unsigned int cubemapTexture = loadCubemap(faces);
   Shader skyboxShader("skybox.vs", "skybox.fs");
   unsigned int skyboxVAO = getSkyboxVAO();
@@ -379,9 +394,8 @@ void Scene1(GLFWwindow *window) {
     modelSponza.Draw(shader);
 
     // Draw Girl
-    // lightShader.setMat4("model",
-    //                     glm::scale(glm::mat4(1.f), glm::vec3(0.05f)));
-    // modelGirl.Draw(lightShader);
+    shader.setMat4("model", glm::scale(glm::mat4(1.f), glm::vec3(0.05f)));
+    modelGirl.Draw(shader);
   };
   while (!glfwWindowShouldClose(window)) {
     // Time Update
@@ -405,7 +419,6 @@ void Scene1(GLFWwindow *window) {
     glClearColor(0.1f, 0.1f, 0.15f, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
     // Fix Camera Y Position
     // -----------------
     // mainCam.Position.y = 1;
@@ -422,15 +435,16 @@ void Scene1(GLFWwindow *window) {
     glm::vec3 spotLightPos = mainCam.Position + spotLightOffset;
     lightSystem.lights[0].setPosition(spotLightPos);
     lightSystem.lights[0].setDirection(mainCam.Front);
+    lightSystem.lights[0].toggleShadow(spotLightEnabled);
 
     /// Point Lights
     // -----------------
     for (int i = 2; i < lightSystem.lights.size(); i++) {
       auto &light = lightSystem.lights[i];
       glm::vec3 lightPosOffset;
-      lightPosOffset.x = cos(glfwGetTime() + i * 11.4) * 12.0;
-      lightPosOffset.y = sin(glfwGetTime() * 3 + i * 11.4) * 12.0;
-      lightPosOffset.z = sin(glfwGetTime() + i * 11.4) * 12.0;
+      lightPosOffset.x = cos(glfwGetTime() + i * 11.4) * 10.0;
+      lightPosOffset.y = sin(glfwGetTime() * 3 + i * 11.4) * 3.0;
+      lightPosOffset.z = sin(glfwGetTime() + i * 11.4) * 10.0;
 
       glm::vec3 lightColor(1.f);
       float time = glfwGetTime();
@@ -440,17 +454,12 @@ void Scene1(GLFWwindow *window) {
       lightColor *= 3.f;
 
       light.setColor(lightColor);
-      light.setPosition(lightPosOffset + pointLightPositions[i - 2]);
-
-      // lightSourceShader.use();
-      // glBindVertexArray(lightCubeVAO);
-      // transformation(lightSourceShader);
-      // model = glm::mat4(1.0f);
-      // model = glm::translate(model, pos);
-      // model = glm::scale(model, glm::vec3(0.2f));
-      // lightSourceShader.setMat4("model", model);
-      // lightSourceShader.setVec3("lightColor", lightColor);
-      // glDrawArrays(GL_TRIANGLES, 0, 36);
+      if (i - 2 < RANDOM_LIGHT_WITH_SHADOW) {
+        light.setColorRatio(5, 0, 5);
+        light.setPosition(lightPosOffset + glm::vec3(0.f, -30.f, 0.f));
+        light.toggleShadow(pointShadow);
+      } else
+        light.setPosition(lightPosOffset + pointLightPositions[i - 2]);
     }
     // Render to depthmap
     lightSystem.updateShadowMap(renderScene);
@@ -487,6 +496,7 @@ void Scene1(GLFWwindow *window) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
     glClearColor(.0f, 1.0f, .0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+    glViewport(0, 0, windowWidth, windowHeight);
 
     HDRShader.use();
     HDRShader.setInt("screenTexture", 0);
@@ -566,6 +576,7 @@ int main() {
   glfwSetScrollCallback(window, scroll_callback);
   glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetCursorPosCallback(window, mouse_callback);
+  glfwSetKeyCallback(window, key_callback);
   // glEnable(GL_FRAMEBUFFER_SRGB); // Gamma Correction for now
 
   // Enable Blending

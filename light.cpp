@@ -12,6 +12,7 @@ void Light::updateSpaceMatrix() {
     shadowCast = true;
     break;
   case POINT:
+    shadowTransforms.clear();
     shadowTransforms.push_back(lightProjection *
                                glm::lookAt(position,
                                            position + glm::vec3(1.0, 0.0, 0.0),
@@ -123,9 +124,9 @@ void Light::setupShader(int index, int shadowMapIndex, Shader &shader) {
 
   shader.setVec3(elestr("position"), position);
   shader.setVec3(elestr("direction"), direction);
-  shader.setFloat(elestr("cutOff"), type != POINT ? cutOff : farPlane);
+  shader.setFloat(elestr("cutOff"), cutOff);
   shader.setFloat(elestr("outerCutOff"), outerCutOff);
-  // shader.setFloat(elestr("far_plane"), farPlane);
+  shader.setFloat(elestr("far_plane"), farPlane);
   shader.setVec3(elestr("ambient"), ambient);
   shader.setVec3(elestr("diffuse"), diffuse);
   shader.setVec3(elestr("specular"), specular);
@@ -134,10 +135,12 @@ void Light::setupShader(int index, int shadowMapIndex, Shader &shader) {
   shader.setFloat(elestr("quadratic"), quadratic);
   shader.setFloat(elestr("radius"), radius);
   shader.setInt(elestr("type"), type);
-  shader.setInt(elestr("shadowCast"), shadowCast);
+  shader.setInt(elestr("shadowCast"), shadowCast && shadowEnabled);
   shader.setMat4(elestr("lightSpace"), lightSpaceMatrix);
-  shader.setInt(elestr(type != POINT ? "shadowMap" : "cubeMap"),
-                shadowMapIndex);
+  if (type != POINT)
+    shader.setInt(elestr("shadowMap"), shadowMapIndex);
+  else
+    shader.setInt(elestr("cubeMap"), shadowMapIndex);
 }
 
 void Light::initialize() {

@@ -29,6 +29,7 @@ struct Light {
   float linear;
   float quadratic;
   float radius;
+  float far_plane;
 
   sampler2D shadowMap;
   samplerCube cubeMap;
@@ -87,13 +88,27 @@ float pointLightShadowCaculation(vec3 fragPos) {
   float closestDepth = texture(light.cubeMap, fragToLight).r;
   // it is currently in linear range between [0,1]. Re-transform back to
   // original value
-  closestDepth *= light.cutOff;
+  closestDepth *= light.far_plane;
   // now get current linear depth as the length between the fragment and
   // light position
   float currentDepth = length(fragToLight);
-  // now test for shadows
-  float bias = 0.0005;
-  float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+
+  // PCF
+  float shadow = 0.0;
+  float bias = 0.05;
+  float samples = 4.0;
+  float offset = 0.1;
+  for (float x = -offset; x < offset; x += offset / (samples * 0.5)) {
+    for (float y = -offset; y < offset; y += offset / (samples * 0.5)) {
+      for (float z = -offset; z < offset; z += offset / (samples * 0.5)) {
+        float closestDepth = texture(light.cubeMap, fragToLight + vec3(x, y, z)).r;
+        closestDepth *= light.far_plane; // undo mapping [0;1]
+        if (currentDepth - bias > closestDepth)
+          shadow += 1.0;
+      }
+    }
+  }
+  shadow /= (samples * samples * samples);
 
   return shadow;
 }
@@ -103,8 +118,8 @@ void pointLight() {
   vec3 Normal = texture(gNormal, TexCoords).rgb;
   // Attenuation
   float distance = length(light.position - FragPos);
-  if (distance > light.radius)
-    discard;
+  // if (distance > light.radius)
+  //   discard;
   float attenuation = 1.0 / (light.constant + light.linear * distance +
                              light.quadratic * (distance * distance));
 
@@ -125,8 +140,8 @@ void pointLight() {
 
   float shadow = pointLightShadowCaculation(FragPos);
 
-  oDiffuse = svec4((diffuse + ambient) * attenuation);
-  oSpecular = svec4(specular * attenuation);
+  oDiffuse = svec4((diffuse * (1. - shadow) + ambient) * attenuation);
+  oSpecular = svec4(specular * attenuation * (1. - shadow));
 }
 
 void spotLight() {
@@ -135,8 +150,8 @@ void spotLight() {
   vec3 lightDir = normalize(light.position - FragPos);
   // Attenuation
   float distance = length(light.position - FragPos);
-  if (distance > light.radius)
-    discard;
+  // if (distance > light.radius)
+  //   discard;
   float attenuation = 1.0 / (light.constant + light.linear * distance +
                              light.quadratic * (distance * distance));
   // Soft Outer Shadow

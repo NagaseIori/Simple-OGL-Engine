@@ -113,7 +113,7 @@ public:
 
   template <typename F>
   void updateShadowMap(Shader &depthShader, F renderScene) {
-    if (!shadowCast)
+    if (!shadowCast || !shadowEnabled)
       return;
     glViewport(0, 0, shadowWidth, shadowHeight);
     glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
@@ -167,6 +167,10 @@ public:
     shadowHeight = height;
   }
 
+  void toggleShadow(bool enabled) {
+    shadowEnabled = enabled;
+  }
+
 private:
   friend class Lights;
   glm::mat4 lightSpaceMatrix;
@@ -174,6 +178,7 @@ private:
   bool initialized = false;
   bool shadowMapInited = false;
   bool shadowCast = false;
+  bool shadowEnabled = true;
   float farPlane;
   unsigned int shadowWidth = SHADOW_WIDTH, shadowHeight = SHADOW_HEIGHT;
 
@@ -211,7 +216,10 @@ public:
   }
   template <typename F> void updateShadowMap(F renderScene) {
     for (auto &light : lights)
-      light.updateShadowMap(depthShader, renderScene);
+      if (light.type != POINT)
+        light.updateShadowMap(depthShader, renderScene);
+      else
+        light.updateShadowMap(pointDepthShader, renderScene);
   }
   template <typename F>
   void render(glm::vec3 viewPos, F renderScene, void transformation(Shader &),
@@ -246,14 +254,16 @@ public:
     // also send light relevant uniforms
     lightPassShader.use();
     for (int i = 0; i < lights.size(); i++) {
-      glActiveTexture(GL_TEXTURE30);
+      glActiveTexture(GL_TEXTURE10 + (lights[i].type == POINT ? 1 : 0));
       glBindTexture(lights[i].type != POINT ? GL_TEXTURE_2D
                                             : GL_TEXTURE_CUBE_MAP,
                     lights[i].shadowMap);
-      lights[i].setupShader(i, 30, lightPassShader);
+      lights[i].setupShader(i, 10 + (lights[i].type == POINT ? 1 : 0),
+                            lightPassShader);
       renderQuad(quadVAO);
     }
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // reset blendmode to normal
+    glBlendFunc(GL_SRC_ALPHA,
+                GL_ONE_MINUS_SRC_ALPHA); // reset blendmode to normal
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Third-pass: lightMap -> target

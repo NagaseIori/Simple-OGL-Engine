@@ -30,7 +30,7 @@ bool depthDebug = false;
 int debugSurface = 0;
 const int DEBUG_SRUFACES = 6;
 float exposure = 2.0;
-bool pointShadow = true;
+bool pointShadow = false;
 
 float windowWidth = WINDOW_WIDTH, windowHeight = WINDOW_HEIGHT;
 
@@ -232,7 +232,7 @@ unsigned int loadCubemap(vector<std::string> faces) {
   glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-  stbi_set_flip_vertically_on_load(true);
+  // stbi_set_flip_vertically_on_load(true);
 
   return textureID;
 }
@@ -305,7 +305,7 @@ void Scene1(GLFWwindow *window) {
   spotLight.cutOff = glm::cos(glm::radians(30.f));
   spotLight.outerCutOff = glm::cos(glm::radians(35.f));
   spotLight.setAttenuation(1, 0.07, 0.017);
-  spotLight.setColorRatio(4, 0.01, 1);
+  spotLight.setColorRatio(1, 0.01, 1);
   spotLight.setColor(glm::vec3(1.f));
   spotLight.setSpotlightProjection(glm::radians(35.f), 1, 0.1f,
                                    LIGHT_FAR_PLANE);
@@ -337,9 +337,11 @@ void Scene1(GLFWwindow *window) {
 
   // Load Models
   // ------------------
-  Model modelBag("model/backpack/backpack.obj");
-  Model modelGirl("model/girl/girl.obj");
+  Model modelBag("model/backpack/backpack.obj", false);
+  Model modelGirl("model/girl/rin.obj");
   Model modelSponza("model/sponza/sponza.obj");
+  Model modelPaimon("model/paimon/Paimon.obj");
+  Model modelGaki("model/mesugaki/cute anime girl.obj");
 
   // Setup Screen Framebuffer & Shader
   // ------------------
@@ -388,14 +390,28 @@ void Scene1(GLFWwindow *window) {
 
     // Draw Sponza
     glm::mat4 model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(0.f, -50.f, 0.f));
+    model = glm::translate(model, glm::vec3(0.f, GROUND_YOFFSET, 0.f));
     model = glm::scale(model, glm::vec3(0.1f));
     shader.setMat4("model", model);
     modelSponza.Draw(shader);
 
     // Draw Girl
-    shader.setMat4("model", glm::scale(glm::mat4(1.f), glm::vec3(0.05f)));
+    model = glm::translate(glm::mat4(1.f), glm::vec3(0.f, GROUND_YOFFSET, 0.f));
+    model = glm::scale(model, glm::vec3(10.f));
+    shader.setMat4("model", model);
     modelGirl.Draw(shader);
+
+    // Draw Paimon
+    model = glm::translate(glm::mat4(1.f), glm::vec3(5.f, GROUND_YOFFSET, 0.f));
+    model = glm::scale(model, glm::vec3(1.f));
+    shader.setMat4("model", model);
+    modelPaimon.Draw(shader);
+
+    // Draw Gaki
+    model = glm::translate(glm::mat4(1.f), glm::vec3(-20.f, GROUND_YOFFSET, 0.f));
+    model = glm::scale(model, glm::vec3(10.f));
+    shader.setMat4("model", model);
+    modelGaki.Draw(shader);
   };
   while (!glfwWindowShouldClose(window)) {
     // Time Update
@@ -554,7 +570,7 @@ int main() {
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   glfwWindowHint(GLFW_SAMPLES, 4);
-  stbi_set_flip_vertically_on_load(true);
+  // stbi_set_flip_vertically_on_load(true);
 
   GLFWwindow *window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT,
                                         "OpenGL Window Bruh", NULL, NULL);

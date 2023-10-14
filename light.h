@@ -229,7 +229,7 @@ public:
     lightPassShader.setInt("gPosition", 0);
     lightPassShader.setInt("gNormal", 1);
     lightPassShader.setVec3("viewPos", viewPos);
-    lightPassShader.setFloat("shininess", 2.0f);
+    lightPassShader.setFloat("shininess", 32.0f);
 
     // First-pass: Geometry info -> gBuffer
     // glDisable(GL_BLEND); // Disable blend for g-buffer
@@ -244,9 +244,9 @@ public:
     // glEnable(GL_BLEND); // Re-enable blend
 
     // Second-pass: Light info -> lightMap
-    glBlendFunc(GL_ONE, GL_ONE); // set blendmode to add
     glBindFramebuffer(GL_FRAMEBUFFER, lightFBO);
     glClear(GL_COLOR_BUFFER_BIT);
+    glBlendFunc(GL_ONE, GL_ONE); // set blendmode to add
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gPosition);
     glActiveTexture(GL_TEXTURE1);

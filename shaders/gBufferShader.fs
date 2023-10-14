@@ -23,14 +23,6 @@ struct Material {
 uniform Material material;
 
 void main() {
-  // store the fragment position vector in the first gbuffer texture
-  // gPosition = FragPos;
-  // also store the per-fragment normals into the gbuffer
-  // gNormal = normalize(Normal);
-  // and the diffuse per-fragment color
-  // gAlbedo = texture(material.diffuse[0], TexCoords);
-  // store specular intensity in gAlbedoSpec's alpha component
-  // gSpec = texture(material.specular[0], TexCoords).rgb;
   vec4 albedo = vec4(0.);
   vec4 spec = vec4(0.);
   vec3 normal = vec3(0.);

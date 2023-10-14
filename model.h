@@ -35,8 +35,8 @@ public:
   bool gammaCorrection;
 
   // constructor, expects a filepath to a 3D model.
-  Model(string const &path, bool gamma = false) : gammaCorrection(gamma) {
-    loadModel(path);
+  Model(string const &path, bool flipUVs = true, bool gamma = true) : gammaCorrection(gamma) {
+    loadModel(path, flipUVs);
   }
 
   // draws the model, and thus all its meshes
@@ -48,13 +48,13 @@ public:
 private:
   // loads a model with supported ASSIMP extensions from file and stores the
   // resulting meshes in the meshes vector.
-  void loadModel(string const &path) {
+  void loadModel(string const &path, bool flipUV) {
     cout << "Start loading model from: " + path << endl;
     // read file via ASSIMP
     Assimp::Importer importer;
     const aiScene *scene = importer.ReadFile(
-        path, aiProcess_Triangulate | aiProcess_GenSmoothNormals |
-                  aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
+        path, aiProcess_Triangulate | aiProcess_CalcTangentSpace |
+                  (flipUV ? aiProcess_FlipUVs : 0));
     // check for errors
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
         !scene->mRootNode) // if is Not Zero
@@ -136,6 +136,9 @@ private:
       } else
         vertex.TexCoords = glm::vec2(0.0f, 0.0f);
 
+      if (mesh->mTextureCoords[1]) {
+        cout << "::Warning:: Extra mesh texcoords found." << endl;
+      }
       vertices.push_back(vertex);
     }
     // now wak through each of the mesh's faces (a face is a mesh its triangle)

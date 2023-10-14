@@ -27,8 +27,11 @@ struct Light {
   float constant;
   float linear;
   float quadratic;
+  float radius;
 
   sampler2D shadowMap;
+  samplerCube cubeMap;
+
   int shadowCast;
   mat4 lightSpace;
 
@@ -100,6 +103,8 @@ void pointLight() {
   vec3 Normal = texture(gNormal, TexCoords).rgb;
   // Attenuation
   float distance = length(light.position - FragPos);
+  if(distance > light.radius)
+    discard;
   float attenuation = 1.0 / (light.constant + light.linear * distance +
                              light.quadratic * (distance * distance));
 
@@ -128,14 +133,16 @@ void spotLight() {
   vec3 FragPos = texture(gPosition, TexCoords).rgb;
   vec3 Normal = texture(gNormal, TexCoords).rgb;
   vec3 lightDir = normalize(light.position - FragPos);
+  // Attenuation
+  float distance = length(light.position - FragPos);
+  if(distance > light.radius)
+    discard;
+  float attenuation = 1.0 / (light.constant + light.linear * distance +
+                             light.quadratic * (distance * distance));
   // Soft Outer Shadow
   float theta = dot(lightDir, normalize(-light.direction));
   float epsilon = light.cutOff - light.outerCutOff;
   float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
-  // Attenuation
-  float distance = length(light.position - FragPos);
-  float attenuation = 1.0 / (light.constant + light.linear * distance +
-                             light.quadratic * (distance * distance));
   // Ambient
   vec4 ambient = vec4(light.ambient, 1.0);
   // Diffuse

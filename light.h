@@ -35,6 +35,7 @@ public:
   float constant = 1.0;
   float linear = 0.14;
   float quadratic = 0.07;
+  float radius;
   unsigned int shadowMap, shadowFBO;
   LightType type;
   glm::mat4 lightProjection;
@@ -86,12 +87,14 @@ public:
     diffuseRatio = diffuse;
     ambientRatio = ambient;
     specularRatio = specular;
+    resetColor();
   }
 
   void resetColor() {
     diffuse = color * diffuseRatio;
     ambient = diffuse * ambientRatio;
     specular = color * specularRatio;
+    caculateRadius();
   }
 
   void setColor(glm::vec3 color) {
@@ -176,14 +179,15 @@ private:
 
   void updateSpaceMatrix();
   void updateModelMatrix();
+  void caculateRadius();
+  float getLightMax();
   void setupShadowMap();
   void setupShader(int, int, Shader &);
   void initialize();
 };
 
 class Lights {
-  // private:
-public:
+private:
   Shader depthShader;
   Shader lightShader;
   Shader lightSourceShader;
@@ -191,14 +195,14 @@ public:
   Shader gBufferShader;
   Shader lightPassShader;
   Shader lightFinalShader;
-  unsigned int lightVAO, lightFBO, gLightAlbedo, gLightSpec;
-  unsigned int gBuffer;
-  unsigned int gPosition, gNormal, gAlbedo, gSpec, rboDepth;
-  unsigned int quadVAO;
   void setupLightFBO();
   void setupGBuffer();
 
 public:
+  unsigned int lightVAO, lightFBO, gLightAlbedo, gLightSpec;
+  unsigned int gBuffer;
+  unsigned int gPosition, gNormal, gAlbedo, gSpec, rboDepth;
+  unsigned int quadVAO;
   vector<Light> lights;
 
   void addLight(Light light) {

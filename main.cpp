@@ -312,7 +312,7 @@ void Scene1(GLFWwindow *window) {
     Light pointLight;
     pointLight.setType(POINT);
     pointLight.setColorRatio(0.5, 0.2, 1);
-    pointLight.setAttenuation(1, 0.09, 0.032);
+    pointLight.setAttenuation(1, 0.35, 0.44);
     lightSystem.addLight(pointLight);
   }
 
@@ -432,7 +432,7 @@ void Scene1(GLFWwindow *window) {
       lightColor.x = sin(time + i * 11.4) / 2 + 0.5;
       lightColor.y = cos(time + i * 11.4) / 2 + 0.5;
       lightColor.z = sin(time - i * 11.4) / 2 + 0.5;
-      lightColor *= 2.f;
+      lightColor *= 3.f;
 
       light.setColor(lightColor);
       light.setPosition(lightPosOffset + pointLightPositions[i - 2]);

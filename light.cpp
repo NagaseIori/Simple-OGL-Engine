@@ -1,4 +1,5 @@
 #include "light.h"
+#include <cmath>
 using namespace std;
 
 void Light::updateSpaceMatrix() {
@@ -41,6 +42,25 @@ void Light::updateSpaceMatrix() {
     break;
   }
   setupShadowMap();
+}
+
+void Light::caculateRadius() {
+  radius = (-linear +
+            std::sqrt(linear * linear -
+                      4 * quadratic *
+                          (constant - (1.0 / BRIGHTNESS_THRESHOLD_LOWERBOUND) *
+                                          getLightMax()))) /
+           (2 * quadratic);
+}
+
+float Light::getLightMax() {
+  vector<float> valueToCheck{ambient.r,  ambient.g,  ambient.b,
+                             diffuse.r,  diffuse.g,  diffuse.b,
+                             specular.r, specular.g, specular.b};
+  float max = valueToCheck[0];
+  for (auto x : valueToCheck)
+    max = std::max(x, max);
+  return max;
 }
 
 void Light::setupShadowMap() {
@@ -112,6 +132,7 @@ void Light::setupShader(int index, int shadowMapIndex, Shader &shader) {
   shader.setFloat(elestr("constant"), constant);
   shader.setFloat(elestr("linear"), linear);
   shader.setFloat(elestr("quadratic"), quadratic);
+  shader.setFloat(elestr("radius"), radius);
   shader.setInt(elestr("type"), type);
   shader.setInt(elestr("shadowCast"), shadowCast);
   shader.setMat4(elestr("lightSpace"), lightSpaceMatrix);

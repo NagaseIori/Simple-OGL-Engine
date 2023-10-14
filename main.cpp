@@ -27,6 +27,8 @@ float lastFrame = 0.0f; // Time of last frame
 float lastX = WINDOW_WIDTH / 2., lastY = WINDOW_HEIGHT / 2.;
 float spotLightEnabled = 1.0;
 bool depthDebug = false;
+int debugSurface = 0;
+const int DEBUG_SRUFACES = 5;
 
 Camera mainCam(30.f, 30.f, 3.f, 0.f, 1.f, 0.f, -135.f, -45.f);
 
@@ -35,7 +37,13 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
 }
 
 void scroll_callback(GLFWwindow *window, double xoff, double yoff) {
-  mainCam.ProcessMouseScroll(yoff);
+  if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
+    debugSurface = debugSurface - yoff + DEBUG_SRUFACES + 1;
+    debugSurface %= DEBUG_SRUFACES + 1;
+  } else {
+
+    mainCam.ProcessMouseScroll(yoff);
+  }
 }
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 
@@ -142,31 +150,6 @@ const float boxVertices[] = {
     -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f, 0.5f,  0.5f,  -0.5f, 1.0f, 1.0f,
     0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
     -0.5f, 0.5f,  0.5f,  0.0f, 0.0f, -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f};
-
-unsigned int getQuadVAO() {
-  float quadVertices[] = {// vertex attributes for a quad that fills the entire
-                          // screen in Normalized Device Coordinates.
-                          // positions   // texCoords
-                          -1.0f, 1.0f, 0.0f, 1.0f,  -1.0f, -1.0f,
-                          0.0f,  0.0f, 1.0f, -1.0f, 1.0f,  0.0f,
-
-                          -1.0f, 1.0f, 0.0f, 1.0f,  1.0f,  -1.0f,
-                          1.0f,  0.0f, 1.0f, 1.0f,  1.0f,  1.0f};
-  unsigned int VAO, VBO;
-  glGenBuffers(1, &VBO);
-  glGenVertexArrays(1, &VAO);
-  glBindVertexArray(VAO);
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices,
-               GL_STATIC_DRAW);
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
-  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
-                        (void *)(2 * sizeof(float)));
-  glEnableVertexAttribArray(0);
-  glEnableVertexAttribArray(1);
-  glBindVertexArray(0);
-  return VAO;
-}
 
 void drawAxis(Shader &shader, unsigned int AxisVAO) {
   shader.use();
@@ -286,7 +269,7 @@ void Scene1(GLFWwindow *window) {
     cubePositions.push_back(
         {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
   }
-  for (int i = 0; i < 10; i++)
+  for (int i = 0; i < RANDOM_LIGHT_COUNT; i++)
     pointLightPositions.push_back(
         {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
 
@@ -318,7 +301,7 @@ void Scene1(GLFWwindow *window) {
   dirLight.setType(DIRECTIONAL);
   dirLight.setPosition({150.f, 300.f, 150.f});
   dirLight.setColorRatio(1, 0.1, 0);
-  dirLight.setColor(RGBColor(80, 104, 134));
+  dirLight.setColor(RGBColor(104, 104, 134));
   dirLight.setDirection({-0.5, -1, -0.15});
 #define DIR_RANGE 400.f
   dirLight.setDirectionalProjection(-DIR_RANGE, DIR_RANGE, -DIR_RANGE,
@@ -417,9 +400,6 @@ void Scene1(GLFWwindow *window) {
     glClearColor(0.1f, 0.1f, 0.15f, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // Draw Axis
-    defaultShader.use();
-    drawAxis(defaultShader, AxisVAO);
 
     // Fix Camera Y Position
     // -----------------
@@ -469,14 +449,17 @@ void Scene1(GLFWwindow *window) {
     // Render to depthmap
     lightSystem.updateShadowMap(renderScene);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
-    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-
     // Render Scene
-    lightSystem.render(mainCam.Position, renderScene, transformation);
+    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+    lightSystem.render(mainCam.Position, renderScene, transformation,
+                       screenFBO);
     glBindVertexArray(0);
 
-    // draw skybox as last
+    // draw axis and skybox as last
+    glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
+    // Draw Axis
+    defaultShader.use();
+    drawAxis(defaultShader, AxisVAO);
     glDepthFunc(GL_LEQUAL); // change depth function so depth test passes when
                             // values are equal to depth buffer's content
     skyboxShader.use();
@@ -500,21 +483,37 @@ void Scene1(GLFWwindow *window) {
     glClear(GL_COLOR_BUFFER_BIT);
 
     screenShader.use();
-    glBindVertexArray(quadVAO);
+    screenShader.setInt("screenTexture", 0);
     glDisable(GL_DEPTH_TEST);
     glActiveTexture(GL_TEXTURE0);
-    screenShader.setInt("screenTexture", 0);
     glBindTexture(GL_TEXTURE_2D, screenTex);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    renderQuad(quadVAO);
 
-    if (depthDebug) {
-      depthDebugShader.use();
-      depthDebugShader.setInt("type", 0);
-      depthDebugShader.setFloat("near_plane", 0.1f);
-      depthDebugShader.setFloat("far_plane", LIGHT_FAR_PLANE);
+    if (debugSurface) {
+      // depthDebugShader.use();
+      // depthDebugShader.setInt("type", 0);
+      // depthDebugShader.setFloat("near_plane", 0.1f);
+      // depthDebugShader.setFloat("far_plane", LIGHT_FAR_PLANE);
+      glDisable(GL_BLEND);
       glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, lightSystem.lights[1].shadowMap);
-      glDrawArrays(GL_TRIANGLES, 0, 6);
+      switch (debugSurface) {
+      case 1:
+        glBindTexture(GL_TEXTURE_2D, lightSystem.gPosition);
+        break;
+      case 2:
+        glBindTexture(GL_TEXTURE_2D, lightSystem.gNormal);
+        break;
+      case 3:
+        glBindTexture(GL_TEXTURE_2D, lightSystem.gAlbedo);
+        break;
+      case 4:
+        glBindTexture(GL_TEXTURE_2D, lightSystem.gSpec);
+        break;
+      default:
+        break;
+      }
+      renderQuad(quadVAO);
+      glEnable(GL_BLEND);
     }
 
     glBindVertexArray(0);

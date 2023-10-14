@@ -181,10 +181,20 @@ private:
 };
 
 class Lights {
-private:
-  Shader depthShader, lightShader, lightSourceShader;
+  // private:
+public:
+  Shader depthShader;
+  Shader lightShader;
+  Shader lightSourceShader;
   Shader pointDepthShader;
-  unsigned int lightVAO;
+  Shader gBufferShader;
+  Shader lightPassShader;
+  unsigned int lightVAO, lightFBO, lightMap;
+  unsigned int gBuffer;
+  unsigned int gPosition, gNormal, gAlbedo, gSpec, rboDepth;
+  unsigned int quadVAO;
+  void setupLightFBO();
+  void setupGBuffer();
 
 public:
   vector<Light> lights;
@@ -198,24 +208,63 @@ public:
       light.updateShadowMap(depthShader, renderScene);
   }
   template <typename F>
-  void render(glm::vec3 viewPos, F renderScene, void transformation(Shader &)) {
+  void render(glm::vec3 viewPos, F renderScene, void transformation(Shader &),
+              unsigned int targetFBO) {
     // Setup shadowmap textures & shader
-    lightShader.use();
-    lightShader.setVec3("viewPos", viewPos);
-    lightShader.setFloat("material.shininess", 2.0f);
-    lightShader.setInt("lightCount", lights.size());
+    lightPassShader.use();
+    lightPassShader.setInt("gPosition", 0);
+    lightPassShader.setInt("gNormal", 1);
+    lightPassShader.setInt("gAlbedo", 2);
+    lightPassShader.setInt("gSpec", 3);
+    lightPassShader.setVec3("viewPos", viewPos);
+    lightPassShader.setFloat("shininess", 2.0f);
+    lightPassShader.setInt("lightCount", lights.size());
     for (int i = 0; i < lights.size(); i++) {
-      glActiveTexture(GL_TEXTURE10 + i);
+      glActiveTexture(GL_TEXTURE5 + i);
       glBindTexture(lights[i].type != POINT ? GL_TEXTURE_2D
                                             : GL_TEXTURE_CUBE_MAP,
                     lights[i].shadowMap);
-      lights[i].setupShader(i, 10 + i, lightShader);
+      lights[i].setupShader(i, 5 + i, lightPassShader);
     }
 
-    // Render
-    renderScene(lightShader);
+    // Render G-Buffer
+    glDisable(GL_BLEND); // Disable blend for g-buffer
+    glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+    glClearColor(0.0, 0.0, 0.0,
+                 1.0); // keep it black so it doesn't leak into g-buffer
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    gBufferShader.use();
+    transformation(gBufferShader);
+    renderScene(gBufferShader);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glEnable(GL_BLEND); // Re-enable blend
+
+    // Render Lightpass
+    glBindFramebuffer(GL_FRAMEBUFFER, targetFBO);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, gPosition);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, gNormal);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, gAlbedo);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, gSpec);
+    // also send light relevant uniforms
+    lightPassShader.use();
+    renderQuad(quadVAO);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Copy Depth Buffer
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER,
+                      targetFBO); // write to target framebuffer
+    glBlitFramebuffer(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0, 0, WINDOW_WIDTH,
+                      WINDOW_HEIGHT, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Render point light cubes
+    glBindFramebuffer(GL_FRAMEBUFFER, targetFBO);
     for (auto &light : lights)
       if (light.type == POINT) {
         lightSourceShader.use();
@@ -225,6 +274,7 @@ public:
         lightSourceShader.setVec3("lightColor", light.color);
         glDrawArrays(GL_TRIANGLES, 0, 36);
       }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
   }
 
   Lights()
@@ -232,8 +282,13 @@ public:
         lightShader("light.vs", "light_v2.fs"),
         lightSourceShader("light.vs", "light_source.fs"),
         pointDepthShader("point_light_depth.vs", "point_light_depth.fs",
-                         "point_light_depth.gs") {
+                         "point_light_depth.gs"),
+        gBufferShader("gBufferShader.vs", "gBufferShader.fs"),
+        lightPassShader("lightPassShader.vs", "lightPassShader.fs") {
     lightVAO = getLightVAO();
+    quadVAO = getQuadVAO();
+    setupGBuffer();
+    setupLightFBO();
   }
 };
 

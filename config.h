@@ -1,0 +1,9 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#define WINDOW_WIDTH 1920
+#define WINDOW_HEIGHT 1080
+#define FAR_PLANE 1000000.f
+#define RANDOM_LIGHT_COUNT 14
+
+#endif

@@ -255,7 +255,7 @@ unsigned int loadCubemap(vector<std::string> faces) {
         stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
     if (data) {
       glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_SRGB_ALPHA, width,
-                   height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+                   height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
       stbi_image_free(data);
     } else {
       std::cout << "Cubemap texture failed to load at path: " << faces[i]
@@ -394,8 +394,12 @@ void Scene1(GLFWwindow *window) {
   /// Directional Light
   dirLight.setType(DIRECTIONAL);
   dirLight.setPosition({150.f, 300.f, 150.f});
+  // Night
   dirLight.setColorRatio(0.3, 0.1, 0);
   dirLight.setColor(RGBColor(81, 104, 134));
+  // Sunset
+  dirLight.setColorRatio(2.0, 0.01, 0);
+  dirLight.setColor(RGBColor(239, 149, 149));
   dirLight.setDirection({-0.5, -1, -0.15});
 #define DIR_RANGE 400.f
   dirLight.setDirectionalProjection(-DIR_RANGE, DIR_RANGE, -DIR_RANGE,
@@ -444,9 +448,12 @@ void Scene1(GLFWwindow *window) {
 
   // Load Cubemaps
   // ------------------
-  vector<std::string> faces{"night/right.png", "night/left.png",
-                            "night/top.png",   "night/bottom.png",
-                            "night/front.png", "night/back.png"};
+  // vector<std::string> faces{"night/right.png", "night/left.png",
+  //                           "night/top.png",   "night/bottom.png",
+  //                           "night/front.png", "night/back.png"};
+  vector<std::string> faces{"skybox/right.jpg", "skybox/left.jpg",
+                            "skybox/top.jpg",   "skybox/bottom.jpg",
+                            "skybox/front.jpg", "skybox/back.jpg"};
   unsigned int cubemapTexture = loadCubemap(faces);
   Shader skyboxShader("skybox.vs", "skybox.fs");
   unsigned int skyboxVAO = getSkyboxVAO();
@@ -510,7 +517,8 @@ void Scene1(GLFWwindow *window) {
 
     // Draw Parallax Test Surface
     glm::mat4 model(1.0f);
-    model = glm::scale(model, glm::vec3(4.0f));
+    model = glm::scale(model, glm::vec3(7.0f));
+    model = glm::rotate(model, glm::radians(-90.f), glm::vec3(1.f, 0.f, 0.f));
     shader.setMat4("model", model);
     shader.setInt("material.diffuse[0]", 0);
     shader.setInt("material.normal[0]", 1);

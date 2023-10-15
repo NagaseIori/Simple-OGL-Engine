@@ -1,4 +1,6 @@
 #include "utils.h"
+#include <iostream>
+using namespace std;
 
 glm::vec3 RGBColor(float R, float G, float B) {
   return glm::vec3(R / 255, G / 255, B / 255);
@@ -30,6 +32,7 @@ unsigned int getQuadVAO() {
 }
 
 unsigned int getQuad3DVAO() {
+  cout<<"Create Quad VAO"<<endl;
   unsigned int quadVAO, quadVBO;
   glm::vec3 pos1(-1.0f, 1.0f, 0.0f);
   glm::vec3 pos2(-1.0f, -1.0f, 0.0f);

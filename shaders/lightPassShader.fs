@@ -78,6 +78,12 @@ float lightShadowCaculation(vec3 normal, vec3 lightDir, vec3 FragPos) {
   return shadow;
 }
 
+vec3 sampleOffsetDirections[20] =
+    vec3[](vec3(1, 1, 1), vec3(1, -1, 1), vec3(-1, -1, 1), vec3(-1, 1, 1),
+           vec3(1, 1, -1), vec3(1, -1, -1), vec3(-1, -1, -1), vec3(-1, 1, -1),
+           vec3(1, 1, 0), vec3(1, -1, 0), vec3(-1, -1, 0), vec3(-1, 1, 0),
+           vec3(1, 0, 1), vec3(-1, 0, 1), vec3(1, 0, -1), vec3(-1, 0, -1),
+           vec3(0, 1, 1), vec3(0, -1, 1), vec3(0, -1, -1), vec3(0, 1, -1));
 float pointLightShadowCaculation(vec3 fragPos) {
   if (light.shadowCast == 0)
     return 0.0;
@@ -96,19 +102,19 @@ float pointLightShadowCaculation(vec3 fragPos) {
   // PCF
   float shadow = 0.0;
   float bias = 0.05;
-  float samples = 4.0;
-  float offset = 0.1;
-  for (float x = -offset; x < offset; x += offset / (samples * 0.5)) {
-    for (float y = -offset; y < offset; y += offset / (samples * 0.5)) {
-      for (float z = -offset; z < offset; z += offset / (samples * 0.5)) {
-        float closestDepth = texture(light.cubeMap, fragToLight + vec3(x, y, z)).r;
-        closestDepth *= light.far_plane; // undo mapping [0;1]
-        if (currentDepth - bias > closestDepth)
-          shadow += 1.0;
-      }
-    }
+  int samples = 20;
+  float viewDistance = length(viewPos - fragPos);
+  float diskRadius = 0.05;
+  for (int i = 0; i < samples; ++i) {
+    float closestDepth =
+        texture(light.cubeMap,
+                fragToLight + sampleOffsetDirections[i] * diskRadius)
+            .r;
+    closestDepth *= light.far_plane; // undo mapping [0;1]
+    if (currentDepth - bias > closestDepth)
+      shadow += 1.0;
   }
-  shadow /= (samples * samples * samples);
+  shadow /= float(samples);
 
   return shadow;
 }

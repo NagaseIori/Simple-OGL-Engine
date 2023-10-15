@@ -18,7 +18,7 @@ void main() {
   // Transition between bound to threshold
   if (brightness > threshold * bound_ratio)
     BloomColor = vec4(FragColor.rgb, 1.0) *
-                 min(mix(0.0, 1.0, brightness - threshold * bound_ratio), 1.0);
+                 min(smoothstep(0.0, 1.0, brightness - threshold * bound_ratio), 1.0);
   else
     BloomColor = vec4(0.0, 0.0, 0.0, 1.0);
 }

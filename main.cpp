@@ -359,7 +359,7 @@ void Scene1(GLFWwindow *window) {
   // ------------------
   std::vector<glm::vec3> cubePositions, pointLightPositions;
   cubePositions.push_back({0.f, 0.f, 0.f});
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < BAG_COUNT; i++) {
     cubePositions.push_back(
         {rand() % 100 - 50, rand() % 100 - 50, rand() % 100 - 50});
   }

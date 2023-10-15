@@ -9,6 +9,7 @@
 #include "camera.h"
 #include "utils.h"
 #include "light.h"
+#include "object.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -310,20 +311,20 @@ unsigned int bloomBlurProcess(unsigned int bloomTex) {
   static bool init = true;
   static unsigned int pingpongFBO[2];
   static unsigned int pingpongBuffer[2];
-  if(init) {
+  if (init) {
     glGenFramebuffers(2, pingpongFBO);
     glGenTextures(2, pingpongBuffer);
     for (unsigned int i = 0; i < 2; i++) {
       glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
       glBindTexture(GL_TEXTURE_2D, pingpongBuffer[i]);
       glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
-                  GL_RGBA, GL_FLOAT, NULL);
+                   GL_RGBA, GL_FLOAT, NULL);
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                            pingpongBuffer[i], 0);
+      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                             GL_TEXTURE_2D, pingpongBuffer[i], 0);
     }
     init = false;
   }
@@ -337,9 +338,8 @@ unsigned int bloomBlurProcess(unsigned int bloomTex) {
   for (unsigned int i = 0; i < amount; i++) {
     glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
     shaderBlur.setInt("horizontal", horizontal);
-    glBindTexture(GL_TEXTURE_2D, first_iteration
-                                     ? bloomTex
-                                     : pingpongBuffer[!horizontal]);
+    glBindTexture(GL_TEXTURE_2D,
+                  first_iteration ? bloomTex : pingpongBuffer[!horizontal]);
     renderQuad();
     horizontal = !horizontal;
     if (first_iteration)
@@ -416,11 +416,11 @@ void Scene1(GLFWwindow *window) {
 
   // Load Models
   // ------------------
-  Model modelBag("model/backpack/backpack.obj", false);
-  Model modelGirl("model/girl/rin.obj");
-  Model modelSponza("model/sponza/sponza.obj");
-  Model modelPaimon("model/paimon/Paimon.obj");
-  Model modelGaki("model/mesugaki/cute anime girl.obj");
+  Object modelBag("model/backpack/backpack.obj", false);
+  Object modelGirl("model/girl/rin.obj");
+  Object modelSponza("model/sponza/sponza.obj");
+  Object modelPaimon("model/paimon/Paimon.obj");
+  Object modelGaki("model/mesugaki/cute anime girl.obj");
 
   // Setup Screen Framebuffer & Shader
   // ------------------
@@ -462,44 +462,33 @@ void Scene1(GLFWwindow *window) {
     // Draw boxes
     // -------------
     for (unsigned int i = 0; i < cubePositions.size(); i++) {
-      glm::mat4 model = glm::mat4(1.0f);
-      model = glm::translate(
-          model, cubePositions[i] +
-                     glm::vec3(0.f, sin(glfwGetTime() + i * 1.14) * 4.f, 0.f));
-      float angle = 20.0f * i;
-      model = glm::rotate(model, float(glfwGetTime() + i * 0.5),
-                          glm::vec3(1.0f, 0.3f, 0.5f));
-      // model = glm::scale(model, glm::vec3(4.f));
-      shader.setMat4("model", model);
+      modelBag.position =
+          cubePositions[i] +
+          glm::vec3(0.f, sin(glfwGetTime() + i * 1.14) * 4.f + GROUND_YOFFSET,
+                    0.f);
+      modelBag.angle = 20.0f * i;
+      modelBag.axis = glm::vec3(1.0f, 0.3f, 0.5f);
 
       modelBag.Draw(shader);
       // modelMiku.Draw(shader);
     }
 
     // Draw Sponza
-    glm::mat4 model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(0.f, GROUND_YOFFSET, 0.f));
-    model = glm::scale(model, glm::vec3(0.1f));
-    shader.setMat4("model", model);
+    modelSponza.setScale(0.1);
     modelSponza.Draw(shader);
 
     // Draw Girl
-    model = glm::translate(glm::mat4(1.f), glm::vec3(0.f, GROUND_YOFFSET, -10.f));
-    model = glm::scale(model, glm::vec3(10.f));
-    shader.setMat4("model", model);
+    modelGirl.setPosition(0, 0, -10);
+    modelGirl.setScale(10);
     modelGirl.Draw(shader);
 
     // Draw Paimon
-    model = glm::translate(glm::mat4(1.f), glm::vec3(5.f, GROUND_YOFFSET, -10.f));
-    model = glm::scale(model, glm::vec3(1.f));
-    shader.setMat4("model", model);
+    modelGirl.setPosition(5, 0, -10);
     modelPaimon.Draw(shader);
 
     // Draw Gaki
-    model =
-        glm::translate(glm::mat4(1.f), glm::vec3(-20.f, GROUND_YOFFSET, -10.f));
-    model = glm::scale(model, glm::vec3(10.f));
-    shader.setMat4("model", model);
+    modelGaki.setPosition(-20, 0, -10);
+    modelGaki.setScale(10);
     modelGaki.Draw(shader);
   };
   while (!glfwWindowShouldClose(window)) {

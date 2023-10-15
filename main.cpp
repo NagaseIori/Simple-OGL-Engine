@@ -484,20 +484,20 @@ void Scene1(GLFWwindow *window) {
     modelSponza.Draw(shader);
 
     // Draw Girl
-    model = glm::translate(glm::mat4(1.f), glm::vec3(0.f, GROUND_YOFFSET, 0.f));
+    model = glm::translate(glm::mat4(1.f), glm::vec3(0.f, GROUND_YOFFSET, -10.f));
     model = glm::scale(model, glm::vec3(10.f));
     shader.setMat4("model", model);
     modelGirl.Draw(shader);
 
     // Draw Paimon
-    model = glm::translate(glm::mat4(1.f), glm::vec3(5.f, GROUND_YOFFSET, 0.f));
+    model = glm::translate(glm::mat4(1.f), glm::vec3(5.f, GROUND_YOFFSET, -10.f));
     model = glm::scale(model, glm::vec3(1.f));
     shader.setMat4("model", model);
     modelPaimon.Draw(shader);
 
     // Draw Gaki
     model =
-        glm::translate(glm::mat4(1.f), glm::vec3(-20.f, GROUND_YOFFSET, 0.f));
+        glm::translate(glm::mat4(1.f), glm::vec3(-20.f, GROUND_YOFFSET, -10.f));
     model = glm::scale(model, glm::vec3(10.f));
     shader.setMat4("model", model);
     modelGaki.Draw(shader);
@@ -645,6 +645,7 @@ void Scene1(GLFWwindow *window) {
         glBindTexture(GL_TEXTURE_2D, lightSystem.gPosition);
         break;
       case 2:
+        screenShader.setInt("map", 1);
         glBindTexture(GL_TEXTURE_2D, lightSystem.gNormal);
         break;
       case 3:
@@ -670,6 +671,7 @@ void Scene1(GLFWwindow *window) {
       }
       renderQuad();
       glEnable(GL_BLEND);
+      screenShader.setInt("map", 0);
     }
 
     glEnable(GL_BLEND);
@@ -683,8 +685,8 @@ int main() {
   // Init
   // ------------------
   glfwInit();
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 4);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   glfwWindowHint(GLFW_SAMPLES, 4);
   // stbi_set_flip_vertically_on_load(true);

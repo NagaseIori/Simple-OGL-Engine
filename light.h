@@ -236,6 +236,7 @@ public:
                  1.0); // keep it black so it doesn't leak into g-buffer
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     gBufferShader.use();
+    gBufferShader.setVec3("viewPos", viewPos);
     transformation(gBufferShader);
     renderScene(gBufferShader);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);

@@ -15,4 +15,6 @@ unsigned int getQuadVAO();
 
 void renderQuad();
 
+void render3DQuad();
+
 #endif

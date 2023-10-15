@@ -5,6 +5,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include "assimp/material.h"
 #include "stb_image.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -172,7 +173,7 @@ private:
     textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
     // 4. height maps
     std::vector<Texture> heightMaps =
-        loadMaterialTextures(material, aiTextureType_AMBIENT, "texture_height");
+        loadMaterialTextures(material, aiTextureType_DISPLACEMENT, "texture_height");
     textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
 
     // return a mesh object created from the extracted mesh data
@@ -192,9 +193,9 @@ private:
       bool skip = false;
       for (unsigned int j = 0; j < textures_loaded.size(); j++) {
         if (std::strcmp(textures_loaded[j].path.data(), str.C_Str()) == 0) {
-          cout << "Texture in cache has been loaded: \n";
-          cout << "  Type: " + textures_loaded[j].type << endl;
-          cout << "  Path: " + textures_loaded[j].path << endl;
+          // cout << "Texture in cache has been loaded: \n";
+          // cout << "  Type: " + textures_loaded[j].type << endl;
+          // cout << "  Path: " + textures_loaded[j].path << endl;
           textures.push_back(textures_loaded[j]);
           skip = true; // a texture with the same filepath has already been
                        // loaded, continue to next one. (optimization)
@@ -223,7 +224,8 @@ private:
 inline unsigned int TextureFromFile(const char *path, const string &directory,
                              bool gamma) {
   string filename = string(path);
-  filename = directory + '/' + filename;
+  if(directory != "")
+    filename = directory + '/' + filename;
 
   unsigned int textureID;
   glGenTextures(1, &textureID);

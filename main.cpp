@@ -421,6 +421,8 @@ void Scene1(GLFWwindow *window) {
   Object modelSponza("model/sponza/sponza.obj");
   Object modelPaimon("model/paimon/Paimon.obj");
   Object modelGaki("model/mesugaki/cute anime girl.obj");
+  // Object modelTrain("model/train/scene.gltf");
+  // Object modelBagH("model/backpackH/scene.gltf");
 
   // Setup Screen Framebuffer & Shader
   // ------------------
@@ -449,6 +451,13 @@ void Scene1(GLFWwindow *window) {
   Shader skyboxShader("skybox.vs", "skybox.fs");
   unsigned int skyboxVAO = getSkyboxVAO();
 
+  // Load Parallax Surface
+  // ------------------
+  unsigned int brickDiffTex, brickNormalTex, brickDispTex;
+  brickDiffTex = TextureFromFile("bricks2.jpg", "", true);
+  brickNormalTex = TextureFromFile("bricks2_normal.jpg", "");
+  brickDispTex = TextureFromFile("bricks2_disp.jpg", "");
+
   // Rendering Loop
   // ------------------
   glm::mat4 model(1.0f);
@@ -464,8 +473,7 @@ void Scene1(GLFWwindow *window) {
     for (unsigned int i = 0; i < cubePositions.size(); i++) {
       modelBag.position =
           cubePositions[i] +
-          glm::vec3(0.f, sin(glfwGetTime() + i * 1.14) * 4.f + 100.f,
-                    0.f);
+          glm::vec3(0.f, sin(glfwGetTime() + i * 1.14) * 4.f + 100.f, 0.f);
       modelBag.angle = 20.0f * i + glfwGetTime();
       modelBag.axis = glm::vec3(1.0f, 0.3f, 0.5f);
 
@@ -490,6 +498,34 @@ void Scene1(GLFWwindow *window) {
     modelGaki.setPosition(-20, 0, -10);
     modelGaki.setScale(10);
     modelGaki.Draw(shader);
+
+    // Draw backpack Highpoly ver
+    // modelBagH.setPosition(20, 10, 10);
+    // modelBagH.Draw(shader);
+
+    // Draw Train
+    // modelTrain.setPosition(20, 0, 0);
+    // modelTrain.setScale(1);
+    // modelTrain.Draw(shader);
+
+    // Draw Parallax Test Surface
+    glm::mat4 model(1.0f);
+    model = glm::scale(model, glm::vec3(4.0f));
+    shader.setMat4("model", model);
+    shader.setInt("material.diffuse[0]", 0);
+    shader.setInt("material.normal[0]", 1);
+    shader.setInt("material.height[0]", 2);
+    shader.setInt("material.diffuse_c", 1);
+    shader.setInt("material.normal_c", 1);
+    shader.setInt("material.height_c", 1);
+    shader.setInt("material.specular_c", 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, brickDiffTex);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, brickNormalTex);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, brickDispTex);
+    render3DQuad();
   };
   while (!glfwWindowShouldClose(window)) {
     // Time Update
@@ -694,7 +730,7 @@ int main() {
     return -1;
   }
 
-  if(MSAA_ENABLED)
+  if (MSAA_ENABLED)
     glEnable(GL_MULTISAMPLE);
   glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);

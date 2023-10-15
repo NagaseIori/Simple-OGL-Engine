@@ -192,6 +192,9 @@ private:
       bool skip = false;
       for (unsigned int j = 0; j < textures_loaded.size(); j++) {
         if (std::strcmp(textures_loaded[j].path.data(), str.C_Str()) == 0) {
+          cout << "Texture in cache has been loaded: \n";
+          cout << "  Type: " + textures_loaded[j].type << endl;
+          cout << "  Path: " + textures_loaded[j].path << endl;
           textures.push_back(textures_loaded[j]);
           skip = true; // a texture with the same filepath has already been
                        // loaded, continue to next one. (optimization)

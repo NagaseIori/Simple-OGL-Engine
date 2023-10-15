@@ -464,9 +464,9 @@ void Scene1(GLFWwindow *window) {
     for (unsigned int i = 0; i < cubePositions.size(); i++) {
       modelBag.position =
           cubePositions[i] +
-          glm::vec3(0.f, sin(glfwGetTime() + i * 1.14) * 4.f + GROUND_YOFFSET,
+          glm::vec3(0.f, sin(glfwGetTime() + i * 1.14) * 4.f + 100.f,
                     0.f);
-      modelBag.angle = 20.0f * i;
+      modelBag.angle = 20.0f * i + glfwGetTime();
       modelBag.axis = glm::vec3(1.0f, 0.3f, 0.5f);
 
       modelBag.Draw(shader);
@@ -677,7 +677,7 @@ int main() {
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 4);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-  glfwWindowHint(GLFW_SAMPLES, 4);
+  glfwWindowHint(GLFW_SAMPLES, MSAA_SAMPLES);
   // stbi_set_flip_vertically_on_load(true);
 
   GLFWwindow *window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT,
@@ -694,7 +694,8 @@ int main() {
     return -1;
   }
 
-  glEnable(GL_MULTISAMPLE);
+  if(MSAA_ENABLED)
+    glEnable(GL_MULTISAMPLE);
   glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
   glfwSetScrollCallback(window, scroll_callback);

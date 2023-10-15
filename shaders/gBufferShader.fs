@@ -7,7 +7,7 @@ layout(location = 3) out vec4 gSpec;
 
 in vec2 TexCoords;
 in vec3 FragPos;
-in vec3 Normal;
+in mat3 TBN;
 
 struct Material {
   sampler2D diffuse[MATERIAL_MAX_COUNT];
@@ -30,15 +30,20 @@ void main() {
   for (int i = 0; i < material.diffuse_c; i++) {
     albedo += texture(material.diffuse[i], TexCoords);
   }
-  if(albedo.a < 0.1)
+  if (albedo.a < 0.1) {
     discard;
+  }
   for (int i = 0; i < material.specular_c; i++) {
     spec += texture(material.specular[i], TexCoords);
   }
   for (int i = 0; i < material.normal_c; i++) {
     normal += texture(material.normal[i], TexCoords).rgb;
   }
-  normal = normalize(normal+Normal);
+  if (material.normal_c == 0) {
+    normal = vec3(0.5, 0.5, 1.);
+  }
+  normal = 2.0 * normal - 1.0;
+  normal = normalize(TBN * normal);
 
   gPosition = vec4(FragPos, 1.);
   gNormal = vec4(normal, 1.);

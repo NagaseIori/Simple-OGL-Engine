@@ -32,6 +32,8 @@ int debugSurface = 0;
 const int DEBUG_SRUFACES = 10;
 float exposure = 2.0;
 bool pointShadow = POINT_SHADOW_START_ENABLED;
+bool fxaaEnabled = true;
+int dirLightStyle = 0;
 
 float windowWidth = WINDOW_WIDTH, windowHeight = WINDOW_HEIGHT;
 
@@ -63,6 +65,13 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action,
   }
   if (key == GLFW_KEY_KP_1 && action == GLFW_PRESS) {
     ssaoEnabled = !ssaoEnabled;
+  }
+  if (key == GLFW_KEY_KP_2 && action == GLFW_PRESS) {
+    fxaaEnabled = !fxaaEnabled;
+  }
+  if (key == GLFW_KEY_KP_3 && action == GLFW_PRESS) {
+    dirLightStyle++;
+    dirLightStyle %= 2;
   }
 }
 
@@ -354,12 +363,6 @@ void Scene1(GLFWwindow *window) {
   /// Directional Light
   dirLight.setType(DIRECTIONAL);
   dirLight.setPosition({150.f, 300.f, 150.f});
-  // Night
-  dirLight.setColorRatio(0.3, 0.1, 0);
-  dirLight.setColor(RGBColor(81, 104, 134));
-  // Sunset
-  dirLight.setColorRatio(2.0, 0.15, 0);
-  dirLight.setColor(RGBColor(239, 149, 149));
   dirLight.setDirection({-0.5, -1, -0.15});
 #define DIR_RANGE 400.f
   dirLight.setDirectionalProjection(-DIR_RANGE, DIR_RANGE, -DIR_RANGE,
@@ -523,6 +526,22 @@ void Scene1(GLFWwindow *window) {
 
     // Setup Lights
     // -------------
+    /// Direcitonal Light
+    // -----------------
+
+    switch (dirLightStyle) {
+    case 0: // night
+      lightSystem.lights[1].setColorRatio(0.3, 0.05, 0);
+      lightSystem.lights[1].setColor(RGBColor(81, 104, 134));
+      break;
+    case 1: // sunset
+      lightSystem.lights[1].setColorRatio(2.0, 0.15, 0);
+      lightSystem.lights[1].setColor(RGBColor(239, 149, 149));
+      break;
+    default:
+      break;
+    }
+
     /// Spot Light
     // -----------------
     lightSystem.lights[0].setColor(RGBColor(255, 255, 255) * spotLightEnabled);
@@ -617,6 +636,7 @@ void Scene1(GLFWwindow *window) {
         gaussianBlur(bloomTex, BLOOM_SIGMA, BLOOM_SAMPLES, BLOOM_SCALE);
 
     // Render final bloom result
+    glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
     HDRBloomFinalShader.use();
     HDRBloomFinalShader.setFloat("exposure", exposure);
     HDRBloomFinalShader.setFloat("bloomStrength", BLOOM_STRENGTH);
@@ -624,6 +644,19 @@ void Scene1(GLFWwindow *window) {
     glBindTexture(GL_TEXTURE_2D, hdrTex);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, blurredTex);
+    renderQuad();
+
+    // FXAA
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    static Shader fxaaShader("FXAA.vs", "FXAA.fs");
+    static Shader passShader("copy.vs", "copy.fs");
+    if (fxaaEnabled)
+      fxaaShader.use();
+    else
+      passShader.use();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, screenTex);
     renderQuad();
 
     if (debugSurface) {
@@ -708,15 +741,13 @@ int main() {
     return -1;
   }
 
-  if (MSAA_ENABLED)
-    glEnable(GL_MULTISAMPLE);
+  glEnable(GL_MULTISAMPLE);
   glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
   glfwSetScrollCallback(window, scroll_callback);
   glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetCursorPosCallback(window, mouse_callback);
   glfwSetKeyCallback(window, key_callback);
-  // glEnable(GL_FRAMEBUFFER_SRGB); // Gamma Correction for now
 
   // Enable Blending
   // --------------

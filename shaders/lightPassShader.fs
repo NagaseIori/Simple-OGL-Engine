@@ -13,6 +13,7 @@ uniform vec3 viewPos;
 uniform int lightCount;
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;
+uniform sampler2D ssaoMap;
 uniform float shininess;
 
 struct Light {
@@ -122,6 +123,7 @@ float pointLightShadowCaculation(vec3 fragPos) {
 void pointLight() {
   vec3 FragPos = texture(gPosition, TexCoords).rgb;
   vec3 Normal = texture(gNormal, TexCoords).rgb;
+  float AmbientOcclusion = texture(ssaoMap, TexCoords).r;
   // Attenuation
   float distance = length(light.position - FragPos);
   // if (distance > light.radius)
@@ -146,7 +148,8 @@ void pointLight() {
 
   float shadow = pointLightShadowCaculation(FragPos);
 
-  oDiffuse = svec4((diffuse * (1. - shadow) + ambient) * attenuation);
+  oDiffuse = svec4((diffuse * (1. - shadow) + ambient * AmbientOcclusion) *
+                   attenuation);
   oSpecular = svec4(specular * attenuation * (1. - shadow));
 }
 
@@ -154,6 +157,7 @@ void spotLight() {
   vec3 FragPos = texture(gPosition, TexCoords).rgb;
   vec3 Normal = texture(gNormal, TexCoords).rgb;
   vec3 lightDir = normalize(light.position - FragPos);
+  float AmbientOcclusion = texture(ssaoMap, TexCoords).r;
   // Attenuation
   float distance = length(light.position - FragPos);
   // if (distance > light.radius)
@@ -179,7 +183,8 @@ void spotLight() {
 
   float shadow = lightShadowCaculation(norm, lightDir, FragPos);
   oDiffuse =
-      svec4((ambient + diffuse * intensity * (1. - shadow)) * attenuation);
+      svec4((ambient * AmbientOcclusion + diffuse * intensity * (1. - shadow)) *
+            attenuation);
   oSpecular = svec4(specular * intensity * (1. - shadow) * attenuation);
 }
 
@@ -187,6 +192,7 @@ void directionLight() {
   vec3 FragPos = texture(gPosition, TexCoords).rgb;
   vec3 Normal = texture(gNormal, TexCoords).rgb;
   vec4 ambient = vec4(light.ambient, 1.0);
+  float AmbientOcclusion = texture(ssaoMap, TexCoords).r;
   // Diffuse
   vec3 norm = normalize(Normal);
   vec3 lightDir = normalize(-light.direction);
@@ -200,7 +206,7 @@ void directionLight() {
   vec4 specular = vec4(light.specular, 1.0) * spec;
 
   float shadow = lightShadowCaculation(norm, lightDir, FragPos);
-  oDiffuse = svec4(ambient + diffuse * (1. - shadow));
+  oDiffuse = svec4(ambient * AmbientOcclusion + diffuse * (1. - shadow));
   oSpecular = svec4(specular * (1. - shadow));
 }
 

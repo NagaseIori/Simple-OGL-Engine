@@ -29,7 +29,7 @@ float lastX = WINDOW_WIDTH / 2., lastY = WINDOW_HEIGHT / 2.;
 float spotLightEnabled = 1.0;
 bool depthDebug = false;
 int debugSurface = 0;
-const int DEBUG_SRUFACES = 8;
+const int DEBUG_SRUFACES = 10;
 float exposure = 2.0;
 bool pointShadow = POINT_SHADOW_START_ENABLED;
 
@@ -60,6 +60,9 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action,
                   int mods) {
   if (key == GLFW_KEY_KP_0 && action == GLFW_PRESS) {
     pointShadow = !pointShadow;
+  }
+  if (key == GLFW_KEY_KP_1 && action == GLFW_PRESS) {
+    ssaoEnabled = !ssaoEnabled;
   }
 }
 
@@ -306,49 +309,6 @@ unsigned int getSkyboxVAO() {
   return VAO;
 }
 
-unsigned int bloomBlurProcess(unsigned int bloomTex) {
-  static Shader shaderBlur("bloomBlur.vs", "bloomBlur.fs");
-  static bool init = true;
-  static unsigned int pingpongFBO[2];
-  static unsigned int pingpongBuffer[2];
-  if (init) {
-    glGenFramebuffers(2, pingpongFBO);
-    glGenTextures(2, pingpongBuffer);
-    for (unsigned int i = 0; i < 2; i++) {
-      glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
-      glBindTexture(GL_TEXTURE_2D, pingpongBuffer[i]);
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
-                   GL_RGBA, GL_FLOAT, NULL);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                             GL_TEXTURE_2D, pingpongBuffer[i], 0);
-    }
-    init = false;
-  }
-
-  bool horizontal = true, first_iteration = true;
-  int amount = 10;
-  shaderBlur.use();
-  shaderBlur.setFloat("sigma", BLOOM_SIGMA);
-  shaderBlur.setFloat("scale", BLOOM_SCALE);
-  shaderBlur.setInt("samples", BLOOM_SAMPLES);
-  for (unsigned int i = 0; i < amount; i++) {
-    glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
-    shaderBlur.setInt("horizontal", horizontal);
-    glBindTexture(GL_TEXTURE_2D,
-                  first_iteration ? bloomTex : pingpongBuffer[!horizontal]);
-    renderQuad();
-    horizontal = !horizontal;
-    if (first_iteration)
-      first_iteration = false;
-  }
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  return pingpongBuffer[!horizontal];
-}
-
 void Scene1(GLFWwindow *window) {
   // Shaders compilation
   // ------------------
@@ -398,7 +358,7 @@ void Scene1(GLFWwindow *window) {
   dirLight.setColorRatio(0.3, 0.1, 0);
   dirLight.setColor(RGBColor(81, 104, 134));
   // Sunset
-  dirLight.setColorRatio(2.0, 0.01, 0);
+  dirLight.setColorRatio(2.0, 0.15, 0);
   dirLight.setColor(RGBColor(239, 149, 149));
   dirLight.setDirection({-0.5, -1, -0.15});
 #define DIR_RANGE 400.f
@@ -653,7 +613,8 @@ void Scene1(GLFWwindow *window) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Gaussian Blur
-    unsigned int blurredTex = bloomBlurProcess(bloomTex);
+    unsigned int blurredTex =
+        gaussianBlur(bloomTex, BLOOM_SIGMA, BLOOM_SAMPLES, BLOOM_SCALE);
 
     // Render final bloom result
     HDRBloomFinalShader.use();
@@ -667,6 +628,8 @@ void Scene1(GLFWwindow *window) {
 
     if (debugSurface) {
       screenShader.use();
+      screenShader.setInt("map", 0);
+      screenShader.setInt("redOnly", 0);
       // depthDebugShader.use();
       // depthDebugShader.setInt("type", 0);
       // depthDebugShader.setFloat("near_plane", 0.1f);
@@ -699,12 +662,19 @@ void Scene1(GLFWwindow *window) {
       case 8:
         glBindTexture(GL_TEXTURE_2D, blurredTex);
         break;
+      case 9:
+        screenShader.setInt("redOnly", 1);
+        glBindTexture(GL_TEXTURE_2D, lightSystem.ssaoMap);
+        break;
+      case 10:
+        screenShader.setInt("redOnly", 1);
+        glBindTexture(GL_TEXTURE_2D, lightSystem.ssaoMapBlurred);
+        break;
       default:
         break;
       }
       renderQuad();
       glEnable(GL_BLEND);
-      screenShader.setInt("map", 0);
     }
 
     glEnable(GL_BLEND);

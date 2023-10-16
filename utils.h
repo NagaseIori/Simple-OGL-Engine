@@ -17,4 +17,11 @@ void renderQuad();
 
 void render3DQuad();
 
+unsigned int getNoiseTexture();
+
+unsigned int gaussianBlur(unsigned int sourceTex, float sigma, float samples,
+                          float scale, int amount = 5);
+
+void copyTexture2D(unsigned int source, unsigned int target);
+
 #endif

@@ -1,12 +1,16 @@
 #include "light.h"
 #include <cmath>
+#include <random>
 using namespace std;
 
+bool ssaoEnabled = true;
+
 void Light::updateSpaceMatrix() {
+  glm::mat4 lightView;
   switch (type) {
   case DIRECTIONAL:
   case SPOTLIGHT:
-    glm::mat4 lightView =
+    lightView =
         glm::lookAt(position, position + direction, glm::vec3(0.f, 1.f, 0.f));
     lightSpaceMatrix = lightProjection * lightView;
     shadowCast = true;
@@ -246,7 +250,7 @@ void Lights::setupGBuffer() {
   // position color buffer
   glGenTextures(1, &gPosition);
   glBindTexture(GL_TEXTURE_2D, gPosition);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
                GL_RGBA, GL_FLOAT, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -255,7 +259,7 @@ void Lights::setupGBuffer() {
   // normal color buffer
   glGenTextures(1, &gNormal);
   glBindTexture(GL_TEXTURE_2D, gNormal);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
                GL_RGBA, GL_FLOAT, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -294,4 +298,66 @@ void Lights::setupGBuffer() {
   if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     std::cout << "Framebuffer not complete!" << std::endl;
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+float lerp(float l, float r, float a) { return l + a * (r - l); }
+
+void Lights::setupSSAO() {
+  // Get SSAO Kernels
+  std::uniform_real_distribution<float> randomFloats(
+      0.0, 1.0); // random floats between [0.0, 1.0]
+  std::default_random_engine generator;
+  for (unsigned int i = 0; i < 64; ++i) {
+    glm::vec3 sample(randomFloats(generator) * 2.0 - 1.0,
+                     randomFloats(generator) * 2.0 - 1.0,
+                     randomFloats(generator));
+    sample = glm::normalize(sample);
+    sample *= randomFloats(generator);
+    float scale = (float)i / 64.0;
+    scale = lerp(0.1f, 1.0f, scale * scale);
+    sample *= scale;
+    ssaoKernel.push_back(sample);
+    // cout << "Sample: " << sample.x << "," << sample.y << "," << sample.z
+    //      << endl;
+  }
+
+  // Setup ssaoFBO & ssao Texture
+
+  glGenFramebuffers(1, &ssaoFBO);
+
+  glGenTextures(1, &ssaoMap);
+  glBindTexture(GL_TEXTURE_2D, ssaoMap);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RED,
+               GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+  glGenTextures(1, &ssaoMapBlurred);
+  glBindTexture(GL_TEXTURE_2D, ssaoMapBlurred);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RED,
+               GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+  glBindFramebuffer(GL_FRAMEBUFFER, ssaoFBO);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         ssaoMap, 0);
+
+  glGenFramebuffers(1, &ssaoBlurFBO);
+  glBindFramebuffer(GL_FRAMEBUFFER, ssaoBlurFBO);
+  glGenTextures(1, &ssaoMapBlurred);
+  glBindTexture(GL_TEXTURE_2D, ssaoMapBlurred);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RED,
+               GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         ssaoMapBlurred, 0);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void Lights::sendSamplesToShader(Shader &shader) {
+  for (int i = 0; i < ssaoKernel.size(); i++) {
+    shader.setVec3("samples[" + to_string(i) + "]", ssaoKernel[i]);
+  }
 }

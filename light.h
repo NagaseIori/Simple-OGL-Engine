@@ -13,6 +13,7 @@ unsigned int getLightVAO();
 
 enum LightType { POINT, DIRECTIONAL, SPOTLIGHT };
 const unsigned int SHADOW_WIDTH = 8192, SHADOW_HEIGHT = 8192;
+extern bool ssaoEnabled;
 
 class Light;
 class Lights;
@@ -167,9 +168,7 @@ public:
     shadowHeight = height;
   }
 
-  void toggleShadow(bool enabled) {
-    shadowEnabled = enabled;
-  }
+  void toggleShadow(bool enabled) { shadowEnabled = enabled; }
 
 private:
   friend class Lights;
@@ -199,13 +198,19 @@ private:
   Shader gBufferShader;
   Shader lightPassShader;
   Shader lightFinalShader;
+  Shader ssaoShader;
+  Shader ssaoBlurShader;
   void setupLightFBO();
   void setupGBuffer();
+  void setupSSAO();
+  std::vector<glm::vec3> ssaoKernel;
+  void sendSamplesToShader(Shader &shader);
 
 public:
   unsigned int lightVAO, lightFBO, gLightAlbedo, gLightSpec;
   unsigned int gBuffer;
   unsigned int gPosition, gNormal, gAlbedo, gSpec, rboDepth;
+  unsigned int ssaoFBO, ssaoMap, noiseTex, ssaoBlurFBO, ssaoMapBlurred;
   vector<Light> lights;
 
   void addLight(Light light) {
@@ -224,8 +229,6 @@ public:
               unsigned int targetFBO) {
     // Setup shadowmap textures & shader
     lightPassShader.use();
-    lightPassShader.setInt("gPosition", 0);
-    lightPassShader.setInt("gNormal", 1);
     lightPassShader.setVec3("viewPos", viewPos);
     lightPassShader.setFloat("shininess", 32.0f);
 
@@ -242,6 +245,34 @@ public:
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     // glEnable(GL_BLEND); // Re-enable blend
 
+    // SSAO Render
+    glDisable(GL_BLEND);
+    if (ssaoEnabled) {
+      glBindFramebuffer(GL_FRAMEBUFFER, ssaoFBO);
+      glClear(GL_COLOR_BUFFER_BIT);
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, gPosition);
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, gNormal);
+      glActiveTexture(GL_TEXTURE2);
+      glBindTexture(GL_TEXTURE_2D, noiseTex);
+      ssaoShader.use();
+      sendSamplesToShader(ssaoShader);
+      transformation(ssaoShader);
+      renderQuad();
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    // SSAO Blurred
+    glBindFramebuffer(GL_FRAMEBUFFER, ssaoBlurFBO);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, ssaoMap);
+    ssaoBlurShader.use();
+    ssaoBlurShader.setInt("ssaoEnabled", ssaoEnabled);
+    renderQuad();
+    glEnable(GL_BLEND);
+
     // Second-pass: Light info -> lightMap
     glBindFramebuffer(GL_FRAMEBUFFER, lightFBO);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -250,6 +281,8 @@ public:
     glBindTexture(GL_TEXTURE_2D, gPosition);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, gNormal);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, ssaoMapBlurred);
     // also send light relevant uniforms
     lightPassShader.use();
     for (int i = 0; i < lights.size(); i++) {
@@ -309,10 +342,13 @@ public:
                          "point_light_depth.gs"),
         gBufferShader("gBufferShader.vs", "gBufferShader.fs"),
         lightPassShader("lightPassShader.vs", "lightPassShader.fs"),
+        ssaoShader("SSAO.vs", "SSAO.fs"),
+        ssaoBlurShader("ssaoBlur.vs", "ssaoBlur.fs"),
         lightFinalShader("lightFinalShader.vs", "lightFinalShader.fs") {
     lightVAO = getLightVAO();
     setupGBuffer();
     setupLightFBO();
+    setupSSAO();
 
     // Configure shader
     lightFinalShader.use();
@@ -320,6 +356,20 @@ public:
     lightFinalShader.setInt("gSpec", 1);
     lightFinalShader.setInt("gLightAlbedo", 2);
     lightFinalShader.setInt("gLightSpec", 3);
+
+    ssaoShader.use();
+    ssaoShader.setInt("gPosition", 0);
+    ssaoShader.setInt("gNormal", 1);
+    ssaoShader.setInt("texNoise", 2);
+    ssaoShader.setVec2("windowSize", {WINDOW_WIDTH, WINDOW_HEIGHT});
+
+    lightPassShader.use();
+    lightPassShader.setInt("gPosition", 0);
+    lightPassShader.setInt("gNormal", 1);
+    lightPassShader.setInt("ssaoMap", 2);
+
+    // Get noise texture
+    noiseTex = getNoiseTexture();
   }
 };
 

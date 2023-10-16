@@ -1,5 +1,8 @@
 #include "utils.h"
+#include "shader_s.h"
 #include <iostream>
+#include <vector>
+#include <random>
 using namespace std;
 
 glm::vec3 RGBColor(float R, float G, float B) {
@@ -32,7 +35,7 @@ unsigned int getQuadVAO() {
 }
 
 unsigned int getQuad3DVAO() {
-  cout<<"Create Quad VAO"<<endl;
+  cout << "Create Quad VAO" << endl;
   unsigned int quadVAO, quadVBO;
   glm::vec3 pos1(-1.0f, 1.0f, 0.0f);
   glm::vec3 pos2(-1.0f, -1.0f, 0.0f);
@@ -144,4 +147,98 @@ void render3DQuad() {
   static unsigned int quadVAO = getQuad3DVAO();
   glBindVertexArray(quadVAO);
   glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+unsigned int getNoiseTexture() {
+  static bool inited = false;
+  static unsigned noiseTexture = 0;
+  static std::vector<glm::vec3> noiseVec;
+  if (!inited) {
+    inited = true;
+    std::uniform_real_distribution<float> randomFloats(
+        0.0, 1.0); // random floats between [0.0, 1.0]
+    std::default_random_engine generator;
+    for (unsigned int i = 0; i < 16; i++) {
+      glm::vec3 noise(randomFloats(generator) * 2.0 - 1.0,
+                      randomFloats(generator) * 2.0 - 1.0, 0.0f);
+      noiseVec.push_back(noise);
+    }
+
+    glGenTextures(1, &noiseTexture);
+    glBindTexture(GL_TEXTURE_2D, noiseTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 4, 4, 0, GL_RGB, GL_FLOAT,
+                 &noiseVec[0]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  }
+  return noiseTexture;
+}
+
+unsigned int gaussianBlur(unsigned int sourceTex, float sigma, float samples,
+                          float scale, int amount) {
+  static Shader shaderBlur("gaussianBlur.vs", "gaussianBlur.fs");
+  static bool init = true;
+  static unsigned int pingpongFBO[2];
+  static unsigned int pingpongBuffer[2];
+  if (init) {
+    glGenFramebuffers(2, pingpongFBO);
+    glGenTextures(2, pingpongBuffer);
+    for (unsigned int i = 0; i < 2; i++) {
+      glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
+      glBindTexture(GL_TEXTURE_2D, pingpongBuffer[i]);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, WINDOW_WIDTH, WINDOW_HEIGHT, 0,
+                   GL_RGBA, GL_FLOAT, NULL);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                             GL_TEXTURE_2D, pingpongBuffer[i], 0);
+    }
+    init = false;
+  }
+
+  bool horizontal = true, first_iteration = true;
+  amount *= 2;
+  shaderBlur.use();
+  shaderBlur.setFloat("sigma", sigma);
+  shaderBlur.setFloat("scale", scale);
+  shaderBlur.setInt("samples", samples);
+  for (unsigned int i = 0; i < amount; i++) {
+    glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
+    shaderBlur.setInt("horizontal", horizontal);
+    glBindTexture(GL_TEXTURE_2D,
+                  first_iteration ? sourceTex : pingpongBuffer[!horizontal]);
+    renderQuad();
+    horizontal = !horizontal;
+    if (first_iteration)
+      first_iteration = false;
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  return pingpongBuffer[!horizontal];
+}
+
+void copyTexture2D(unsigned int source, unsigned int target) {
+  static bool inited = false;
+  static unsigned int copyFBO;
+  static Shader copyShader("copy.vs", "copy.fs");
+  if (!inited) {
+    inited = true;
+    glGenFramebuffers(1, &copyFBO);
+  }
+  bool blend = glIsEnabled(GL_BLEND);
+  if (blend)
+    glDisable(GL_BLEND);
+  glBindFramebuffer(GL_FRAMEBUFFER, copyFBO);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         target, 0);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, source);
+  copyShader.use();
+  renderQuad();
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  if (blend)
+    glEnable(GL_BLEND);
 }

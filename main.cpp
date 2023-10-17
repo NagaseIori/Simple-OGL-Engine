@@ -38,8 +38,9 @@ float exposure = 2.0;
 bool pointShadow = POINT_SHADOW_START_ENABLED;
 bool fxaaEnabled = true;
 bool mouseFocus = true;
-bool displayImGuiWhenFocus = false;
+bool displayImGuiWhenFocus = true;
 int dirLightStyle = 0;
+int tonemapStyle = 0;
 
 float windowWidth = WINDOW_WIDTH, windowHeight = WINDOW_HEIGHT;
 
@@ -92,8 +93,9 @@ void toggleMouseFocus(GLFWwindow *window, bool enable) {
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action,
                   int mods) {
-  auto & io = ImGui::GetIO();
-  if(io.WantCaptureKeyboard) return;
+  auto &io = ImGui::GetIO();
+  if (io.WantCaptureKeyboard)
+    return;
   if (key == GLFW_KEY_GRAVE_ACCENT && action == GLFW_PRESS) {
     mouseFocus = !mouseFocus;
     toggleMouseFocus(window, mouseFocus);
@@ -570,6 +572,28 @@ void Scene1(GLFWwindow *window) {
 
     ImGui::End();
 
+    ImGui::Begin("Graphic Settings");
+    ImGui::Checkbox("FXAA", &fxaaEnabled);
+    ImGui::Checkbox("SSAO", &ssaoEnabled);
+    ImGui::Checkbox("Point lights shadow", &pointShadow);
+    ImGui::SliderFloat("FOV", &mainCam.Zoom, 30, 120, "%.1f", 0);
+    ImGui::SliderFloat("Exposure", &exposure, 0.05, 20, "%.2f", 0);
+    if (ImGui::BeginListBox("Tonemapping")) {
+      static const string _tonemapLists[] = {"Default", "Genshin"};
+      for (int i = 0; i < 2; i++) {
+        if (ImGui::Selectable(_tonemapLists[i].c_str(), i == tonemapStyle)) {
+          tonemapStyle = i;
+        }
+        if (i == tonemapStyle) {
+          ImGui::SetItemDefaultFocus();
+        }
+      }
+      ImGui::EndListBox();
+    }
+
+    ImGui::Checkbox("Always displays debug layer", &displayImGuiWhenFocus);
+    ImGui::End();
+
     // Time Update
     // -----------------
     float currentFrame = glfwGetTime();
@@ -694,6 +718,7 @@ void Scene1(GLFWwindow *window) {
     glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
     HDRBloomFinalShader.use();
     HDRBloomFinalShader.setFloat("exposure", exposure);
+    HDRBloomFinalShader.setInt("tonemapStyle", tonemapStyle);
     HDRBloomFinalShader.setFloat("bloomStrength", BLOOM_STRENGTH);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, hdrTex);
@@ -766,7 +791,7 @@ void Scene1(GLFWwindow *window) {
     }
     // ImGUI Render
     // ----------------
-    if(!mouseFocus || displayImGuiWhenFocus) {
+    if (!mouseFocus || displayImGuiWhenFocus) {
       ImGui::Render();
       ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }
@@ -795,7 +820,6 @@ int main() {
     return -1;
   }
   glfwMakeContextCurrent(window);
-
 
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
     std::cout << "Failed to initialize GLAD" << std::endl;

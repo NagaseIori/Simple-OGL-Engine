@@ -11,6 +11,10 @@
 #include "light.h"
 #include "object.h"
 
+#include "imgui.h"
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_opengl3.h"
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -33,6 +37,8 @@ const int DEBUG_SRUFACES = 10;
 float exposure = 2.0;
 bool pointShadow = POINT_SHADOW_START_ENABLED;
 bool fxaaEnabled = true;
+bool mouseFocus = true;
+bool displayImGuiWhenFocus = false;
 int dirLightStyle = 0;
 
 float windowWidth = WINDOW_WIDTH, windowHeight = WINDOW_HEIGHT;
@@ -45,7 +51,25 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
   windowHeight = height;
 }
 
+void switchDirLightColor(Light &light, int theme) {
+  switch (theme) {
+  case 0: // night
+    light.setColorRatio(0.3, 0.15, 0);
+    light.setColor(RGBColor(81, 104, 134));
+    break;
+  case 1: // sunset
+    light.setColorRatio(2.0, 0.15, 0);
+    light.setColor(RGBColor(239, 149, 149));
+    break;
+  case 2: // customized
+  default:
+    break;
+  }
+}
+
 void scroll_callback(GLFWwindow *window, double xoff, double yoff) {
+  if (!mouseFocus)
+    return;
   if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
     debugSurface = debugSurface - yoff + DEBUG_SRUFACES + 1;
     debugSurface %= DEBUG_SRUFACES + 1;
@@ -58,8 +82,24 @@ void scroll_callback(GLFWwindow *window, double xoff, double yoff) {
 }
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 
+void toggleMouseFocus(GLFWwindow *window, bool enable) {
+  if (enable) {
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+  } else {
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+  }
+}
+
 void key_callback(GLFWwindow *window, int key, int scancode, int action,
                   int mods) {
+  auto & io = ImGui::GetIO();
+  if(io.WantCaptureKeyboard) return;
+  if (key == GLFW_KEY_GRAVE_ACCENT && action == GLFW_PRESS) {
+    mouseFocus = !mouseFocus;
+    toggleMouseFocus(window, mouseFocus);
+  }
+  if (!mouseFocus)
+    return;
   if (key == GLFW_KEY_KP_0 && action == GLFW_PRESS) {
     pointShadow = !pointShadow;
   }
@@ -69,13 +109,14 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action,
   if (key == GLFW_KEY_KP_2 && action == GLFW_PRESS) {
     fxaaEnabled = !fxaaEnabled;
   }
-  if (key == GLFW_KEY_KP_3 && action == GLFW_PRESS) {
-    dirLightStyle++;
-    dirLightStyle %= 2;
+  if (key == GLFW_KEY_KP_9 && action == GLFW_PRESS) {
+    displayImGuiWhenFocus = !displayImGuiWhenFocus;
   }
 }
 
 void process_input(GLFWwindow *window) {
+  if (!mouseFocus)
+    return;
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
     glfwSetWindowShouldClose(window, true);
   }
@@ -153,31 +194,6 @@ unsigned int getAxisVAO() {
   glBindVertexArray(0);
   return VAO;
 }
-
-const float boxVertices[] = {
-    -0.5f, -0.5f, -0.5f, 0.0f, 0.0f, 0.5f,  -0.5f, -0.5f, 1.0f, 0.0f,
-    0.5f,  0.5f,  -0.5f, 1.0f, 1.0f, 0.5f,  0.5f,  -0.5f, 1.0f, 1.0f,
-    -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f, -0.5f, -0.5f, -0.5f, 0.0f, 0.0f,
-
-    -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, 0.5f,  -0.5f, 0.5f,  1.0f, 0.0f,
-    0.5f,  0.5f,  0.5f,  1.0f, 1.0f, 0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-    -0.5f, 0.5f,  0.5f,  0.0f, 1.0f, -0.5f, -0.5f, 0.5f,  0.0f, 0.0f,
-
-    -0.5f, 0.5f,  0.5f,  1.0f, 0.0f, -0.5f, 0.5f,  -0.5f, 1.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f, 0.0f, 1.0f, -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
-    -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, -0.5f, 0.5f,  0.5f,  1.0f, 0.0f,
-
-    0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.5f,  0.5f,  -0.5f, 1.0f, 1.0f,
-    0.5f,  -0.5f, -0.5f, 0.0f, 1.0f, 0.5f,  -0.5f, -0.5f, 0.0f, 1.0f,
-    0.5f,  -0.5f, 0.5f,  0.0f, 0.0f, 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-
-    -0.5f, -0.5f, -0.5f, 0.0f, 1.0f, 0.5f,  -0.5f, -0.5f, 1.0f, 1.0f,
-    0.5f,  -0.5f, 0.5f,  1.0f, 0.0f, 0.5f,  -0.5f, 0.5f,  1.0f, 0.0f,
-    -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
-
-    -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f, 0.5f,  0.5f,  -0.5f, 1.0f, 1.0f,
-    0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-    -0.5f, 0.5f,  0.5f,  0.0f, 0.0f, -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f};
 
 void drawAxis(Shader &shader, unsigned int AxisVAO) {
   shader.use();
@@ -318,7 +334,27 @@ unsigned int getSkyboxVAO() {
   return VAO;
 }
 
+void toggleImGuiInput(ImGuiIO &io, bool enable) {
+  if (enable) {
+    io.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+    io.ConfigFlags |=
+        ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+  } else {
+    io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
+    io.ConfigFlags &=
+        ~ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+  }
+}
+
 void Scene1(GLFWwindow *window) {
+  // ImGUI IO
+  // ------------------
+  ImGuiIO &io = ImGui::GetIO();
+  io.ConfigFlags |=
+      ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+  io.ConfigFlags |=
+      ImGuiConfigFlags_NavEnableGamepad; // Enable Gamepad Controls
+
   // Shaders compilation
   // ------------------
   Shader myShader("learn.vs", "learn.fs");
@@ -342,7 +378,6 @@ void Scene1(GLFWwindow *window) {
 
   // Light Settings
   // ------------------
-  unsigned int lightCubeVAO = getLightVAO();
   Lights lightSystem;
   Light spotLight, dirLight;
 
@@ -364,6 +399,7 @@ void Scene1(GLFWwindow *window) {
   dirLight.setType(DIRECTIONAL);
   dirLight.setPosition({150.f, 300.f, 150.f});
   dirLight.setDirection({-0.5, -1, -0.15});
+  switchDirLightColor(dirLight, dirLightStyle);
 #define DIR_RANGE 400.f
   dirLight.setDirectionalProjection(-DIR_RANGE, DIR_RANGE, -DIR_RANGE,
                                     DIR_RANGE, 0.1f, LIGHT_FAR_PLANE);
@@ -393,12 +429,11 @@ void Scene1(GLFWwindow *window) {
 
   // Setup Screen Framebuffer & Shader
   // ------------------
-  unsigned int screenFBO, quadVAO, screenTex;
+  unsigned int screenFBO, screenTex;
   glGenFramebuffers(1, &screenFBO);
   setupScreenFBO(screenFBO, screenTex);
   Shader screenShader("screen.vs", "screen.fs");
   Shader HDRShader("HDR.vs", "HDR.fs");
-  quadVAO = getQuadVAO();
 
   // Setup HDR & Bloom FBO
   // ------------------
@@ -430,7 +465,6 @@ void Scene1(GLFWwindow *window) {
 
   // Rendering Loop
   // ------------------
-  glm::mat4 model(1.0f);
 
   // Depthmap setup
   // -----------------
@@ -499,6 +533,43 @@ void Scene1(GLFWwindow *window) {
     render3DQuad();
   };
   while (!glfwWindowShouldClose(window)) {
+    glfwPollEvents();
+
+    // ImGUI Events
+    // --------------
+    toggleImGuiInput(io, !mouseFocus);
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    // ImGUI Main Process
+    ImGui::ShowMetricsWindow();
+
+    ImGui::Begin("Light settings");
+
+    if (ImGui::CollapsingHeader("Global Directional Light")) {
+      ImGui::Indent();
+      bool resetColor = false;
+      resetColor |= ImGui::ColorEdit3("Light Color",
+                                      (float *)&lightSystem.lights[1].color);
+      resetColor |= ImGui::DragFloat(
+          "Ambient", &lightSystem.lights[1].ambientRatio, 0.0005f);
+      resetColor |= ImGui::DragFloat(
+          "Diffuse", &lightSystem.lights[1].diffuseRatio, 0.0005f);
+      resetColor |= ImGui::DragFloat(
+          "Specular", &lightSystem.lights[1].specularRatio, 0.0005f);
+      if (resetColor)
+        lightSystem.lights[1].resetColor();
+      ImGui::Text("%s", ("Current theme: " + to_string(dirLightStyle)).c_str());
+      ImGui::SameLine();
+      if (ImGui::Button("Next theme")) {
+        dirLightStyle++;
+        dirLightStyle %= 2;
+        switchDirLightColor(lightSystem.lights[1], dirLightStyle);
+      }
+    }
+
+    ImGui::End();
+
     // Time Update
     // -----------------
     float currentFrame = glfwGetTime();
@@ -526,22 +597,6 @@ void Scene1(GLFWwindow *window) {
 
     // Setup Lights
     // -------------
-    /// Direcitonal Light
-    // -----------------
-
-    switch (dirLightStyle) {
-    case 0: // night
-      lightSystem.lights[1].setColorRatio(0.3, 0.05, 0);
-      lightSystem.lights[1].setColor(RGBColor(81, 104, 134));
-      break;
-    case 1: // sunset
-      lightSystem.lights[1].setColorRatio(2.0, 0.15, 0);
-      lightSystem.lights[1].setColor(RGBColor(239, 149, 149));
-      break;
-    default:
-      break;
-    }
-
     /// Spot Light
     // -----------------
     lightSystem.lights[0].setColor(RGBColor(255, 255, 255) * spotLightEnabled);
@@ -709,11 +764,16 @@ void Scene1(GLFWwindow *window) {
       renderQuad();
       glEnable(GL_BLEND);
     }
+    // ImGUI Render
+    // ----------------
+    if(!mouseFocus || displayImGuiWhenFocus) {
+      ImGui::Render();
+      ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
 
     glEnable(GL_BLEND);
     glBindVertexArray(0);
     glfwSwapBuffers(window);
-    glfwPollEvents();
   }
 }
 
@@ -736,6 +796,7 @@ int main() {
   }
   glfwMakeContextCurrent(window);
 
+
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
     std::cout << "Failed to initialize GLAD" << std::endl;
     return -1;
@@ -745,14 +806,25 @@ int main() {
   glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
   glfwSetScrollCallback(window, scroll_callback);
-  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetCursorPosCallback(window, mouse_callback);
   glfwSetKeyCallback(window, key_callback);
+  toggleMouseFocus(window, mouseFocus);
 
-  // Enable Blending
+  // Setup Dear ImGui context
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  // Setup Platform/Renderer backends
+  ImGui_ImplGlfw_InitForOpenGL(
+      window, true); // Second param install_callback=true will install
+                     // GLFW callbacks and chain to existing ones.
+  ImGui_ImplOpenGL3_Init("#version 450");
+
+  // OpenGL Tweaks
   // --------------
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
 
   // Shader advLightShader("light.vs", "light_v2.fs");
 
@@ -760,12 +832,22 @@ int main() {
   // --------------
   Scene1(window);
 
+  // Cleanup
+  // --------------
+  ImGui_ImplOpenGL3_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
+  ImGui::DestroyContext();
   glfwTerminate();
   return 0;
 }
 
 bool firstMouse = true;
 void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
+  if (!mouseFocus) {
+    firstMouse = true;
+    return;
+  }
+
   if (firstMouse) // initially set to true
   {
     lastX = xpos;

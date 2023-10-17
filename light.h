@@ -323,6 +323,7 @@ public:
 
     // Render point light cubes
     glBindFramebuffer(GL_FRAMEBUFFER, targetFBO);
+    glDisable(GL_CULL_FACE);
     for (auto &light : lights)
       if (light.type == POINT) {
         lightSourceShader.use();
@@ -332,6 +333,7 @@ public:
         lightSourceShader.setVec3("lightColor", light.color);
         glDrawArrays(GL_TRIANGLES, 0, 36);
       }
+    glEnable(GL_CULL_FACE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
   }
 
@@ -342,9 +344,9 @@ public:
                          "point_light_depth.gs"),
         gBufferShader("gBufferShader.vs", "gBufferShader.fs"),
         lightPassShader("lightPassShader.vs", "lightPassShader.fs"),
+        lightFinalShader("lightFinalShader.vs", "lightFinalShader.fs"),
         ssaoShader("SSAO.vs", "SSAO.fs"),
-        ssaoBlurShader("ssaoBlur.vs", "ssaoBlur.fs"),
-        lightFinalShader("lightFinalShader.vs", "lightFinalShader.fs") {
+        ssaoBlurShader("ssaoBlur.vs", "ssaoBlur.fs") {
     lightVAO = getLightVAO();
     setupGBuffer();
     setupLightFBO();

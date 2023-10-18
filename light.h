@@ -170,6 +170,13 @@ public:
 
   void toggleShadow(bool enabled) { shadowEnabled = enabled; }
 
+  void updateMatrix() {
+    direction = glm::normalize(direction);
+    updateModelMatrix();
+    if (shadowCast)
+      updateSpaceMatrix();
+  }
+
 private:
   friend class Lights;
   glm::mat4 lightSpaceMatrix;

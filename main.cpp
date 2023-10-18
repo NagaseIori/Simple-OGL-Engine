@@ -10,6 +10,7 @@
 #include "utils.h"
 #include "light.h"
 #include "object.h"
+#include "debug.h"
 
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
@@ -39,8 +40,13 @@ bool pointShadow = POINT_SHADOW_START_ENABLED;
 bool fxaaEnabled = true;
 bool mouseFocus = true;
 bool displayImGuiWhenFocus = true;
-int dirLightStyle = 0;
-int tonemapStyle = 0;
+bool drawBags = true;
+bool drawPaimon = true;
+bool drawRin = true;
+bool drawGaki = true;
+bool drawParallaxTest = true;
+int dirLightStyle = 1;
+int tonemapStyle = 1;
 
 float windowWidth = WINDOW_WIDTH, windowHeight = WINDOW_HEIGHT;
 
@@ -474,36 +480,43 @@ void Scene1(GLFWwindow *window) {
   auto renderScene = [&](Shader &shader) {
     shader.use();
     transformation(shader);
-    // Draw boxes
+    // Draw bags
     // -------------
-    for (unsigned int i = 0; i < cubePositions.size(); i++) {
-      modelBag.position =
-          cubePositions[i] +
-          glm::vec3(0.f, sin(glfwGetTime() + i * 1.14) * 4.f + 100.f, 0.f);
-      modelBag.angle = 20.0f * i + glfwGetTime();
-      modelBag.axis = glm::vec3(1.0f, 0.3f, 0.5f);
+    if (drawBags)
+      for (unsigned int i = 0; i < cubePositions.size(); i++) {
+        modelBag.position =
+            cubePositions[i] +
+            glm::vec3(0.f, sin(glfwGetTime() + i * 1.14) * 4.f + 100.f, 0.f);
+        modelBag.angle = 20.0f * i + glfwGetTime();
+        modelBag.axis = glm::vec3(1.0f, 0.3f, 0.5f);
 
-      modelBag.Draw(shader);
-      // modelMiku.Draw(shader);
-    }
+        modelBag.Draw(shader);
+        // modelMiku.Draw(shader);
+      }
 
     // Draw Sponza
     modelSponza.setScale(0.1);
     modelSponza.Draw(shader);
 
     // Draw Girl
-    modelGirl.setPosition(0, 0, -10);
-    modelGirl.setScale(10);
-    modelGirl.Draw(shader);
+    if (drawRin) {
+      modelGirl.setPosition(0, 0, -10);
+      modelGirl.setScale(10);
+      modelGirl.Draw(shader);
+    }
 
     // Draw Paimon
-    modelGirl.setPosition(5, 0, -10);
-    modelPaimon.Draw(shader);
+    if (drawPaimon) {
+      modelGirl.setPosition(5, 0, -10);
+      modelPaimon.Draw(shader);
+    }
 
     // Draw Gaki
-    modelGaki.setPosition(-20, 0, -10);
-    modelGaki.setScale(10);
-    modelGaki.Draw(shader);
+    if (drawGaki) {
+      modelGaki.setPosition(-20, 0, -10);
+      modelGaki.setScale(10);
+      modelGaki.Draw(shader);
+    }
 
     // Draw backpack Highpoly ver
     // modelBagH.setPosition(20, 10, 10);
@@ -515,24 +528,26 @@ void Scene1(GLFWwindow *window) {
     // modelTrain.Draw(shader);
 
     // Draw Parallax Test Surface
-    glm::mat4 model(1.0f);
-    model = glm::scale(model, glm::vec3(7.0f));
-    model = glm::rotate(model, glm::radians(-90.f), glm::vec3(1.f, 0.f, 0.f));
-    shader.setMat4("model", model);
-    shader.setInt("material.diffuse[0]", 0);
-    shader.setInt("material.normal[0]", 1);
-    shader.setInt("material.height[0]", 2);
-    shader.setInt("material.diffuse_c", 1);
-    shader.setInt("material.normal_c", 1);
-    shader.setInt("material.height_c", 1);
-    shader.setInt("material.specular_c", 0);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, brickDiffTex);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, brickNormalTex);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, brickDispTex);
-    render3DQuad();
+    if (drawParallaxTest) {
+      glm::mat4 model(1.0f);
+      model = glm::scale(model, glm::vec3(7.0f));
+      model = glm::rotate(model, glm::radians(-90.f), glm::vec3(1.f, 0.f, 0.f));
+      shader.setMat4("model", model);
+      shader.setInt("material.diffuse[0]", 0);
+      shader.setInt("material.normal[0]", 1);
+      shader.setInt("material.height[0]", 2);
+      shader.setInt("material.diffuse_c", 1);
+      shader.setInt("material.normal_c", 1);
+      shader.setInt("material.height_c", 1);
+      shader.setInt("material.specular_c", 0);
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, brickDiffTex);
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, brickNormalTex);
+      glActiveTexture(GL_TEXTURE2);
+      glBindTexture(GL_TEXTURE_2D, brickDispTex);
+      render3DQuad();
+    }
   };
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
@@ -568,6 +583,11 @@ void Scene1(GLFWwindow *window) {
         dirLightStyle %= 2;
         switchDirLightColor(lightSystem.lights[1], dirLightStyle);
       }
+
+      if (ImGui::DragFloat3("Direction",
+                            (float *)&lightSystem.lights[1].direction, 0.01f)) {
+        lightSystem.lights[1].updateMatrix();
+      }
     }
 
     ImGui::End();
@@ -591,7 +611,20 @@ void Scene1(GLFWwindow *window) {
       ImGui::EndListBox();
     }
 
-    ImGui::Checkbox("Always displays debug layer", &displayImGuiWhenFocus);
+    ImGui::Checkbox("Always display debug layer", &displayImGuiWhenFocus);
+    ImGui::End();
+
+    ImGui::Begin("Engine Debug Information");
+    ImGui::Text("Estimate triangles: %d", debugData.triangles);
+    ImGui::Text("Estimate indices: %d", debugData.indices);
+    ImGui::End();
+
+    ImGui::Begin("Models");
+    ImGui::Checkbox("Bags", &drawBags);
+    ImGui::Checkbox("Rin", &drawRin);
+    ImGui::Checkbox("Paimon", &drawPaimon);
+    ImGui::Checkbox("Gaki", &drawGaki);
+    ImGui::Checkbox("Parallax Brickwall", &drawParallaxTest);
     ImGui::End();
 
     // Time Update
@@ -609,6 +642,7 @@ void Scene1(GLFWwindow *window) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
     glEnable(GL_DEPTH_TEST);
+    debugData.clear();
 
     // Rendering
     // -----------------

@@ -7,6 +7,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "shader_s.h"
+#include "debug.h"
 
 #include <string>
 #include <vector>
@@ -96,6 +97,7 @@ public:
     // draw mesh
     glDrawElements(GL_TRIANGLES, static_cast<unsigned int>(indices.size()),
                    GL_UNSIGNED_INT, 0);
+    debugData.addTriangles(indices.size() / 3);
     glBindVertexArray(0);
 
     // always good practice to set everything back to defaults once configured.

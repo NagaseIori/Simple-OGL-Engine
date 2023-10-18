@@ -51,6 +51,9 @@
     <ClCompile Include="imgui\backends\imgui_impl_glfw.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="debug.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include=".clang-format">
@@ -110,6 +113,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="imgui\misc\cpp\imgui_stdlib.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="debug.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

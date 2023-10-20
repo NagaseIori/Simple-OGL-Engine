@@ -340,7 +340,7 @@ public:
         lightSourceShader.setVec3("lightColor", light.color);
         glDrawArrays(GL_TRIANGLES, 0, 36);
       }
-    glEnable(GL_CULL_FACE);
+    // glEnable(GL_CULL_FACE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
   }
 

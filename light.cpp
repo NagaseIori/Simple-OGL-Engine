@@ -300,7 +300,7 @@ void Lights::setupGBuffer() {
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-float lerp(float l, float r, float a) { return l + a * (r - l); }
+// float lerp(float l, float r, float a) { return l + a * (r - l); }
 
 void Lights::setupSSAO() {
   // Get SSAO Kernels

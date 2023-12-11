@@ -48,6 +48,10 @@ bool drawParallaxTest = true;
 int dirLightStyle = 1;
 int tonemapStyle = 1;
 
+/// Bloom settings
+float bloomStrength = BLOOM_STRENGTH;
+float bloomScale = BLOOM_SCALE;
+
 float windowWidth = WINDOW_WIDTH, windowHeight = WINDOW_HEIGHT;
 
 Camera mainCam(30.f, 30.f, 3.f, 0.f, 1.f, 0.f, -135.f, -45.f);
@@ -588,6 +592,13 @@ void Scene1(GLFWwindow *window) {
                             (float *)&lightSystem.lights[1].direction, 0.01f)) {
         lightSystem.lights[1].updateMatrix();
       }
+      ImGui::Unindent();
+    }
+
+    if (ImGui::CollapsingHeader("Bloom Settings")) {
+      ImGui::Indent();
+      ImGui::DragFloat("Bloom Strength", &bloomStrength, 0.01f, 0.0, 1.0);
+      ImGui::DragFloat("Bloom Scale", &bloomScale, 0.1f, 0.0, 5.0);
     }
 
     ImGui::End();
@@ -746,14 +757,14 @@ void Scene1(GLFWwindow *window) {
 
     // Gaussian Blur
     unsigned int blurredTex =
-        gaussianBlur(bloomTex, BLOOM_SIGMA, BLOOM_SAMPLES, BLOOM_SCALE);
+        gaussianBlur(bloomTex, BLOOM_SIGMA, BLOOM_SAMPLES, bloomScale);
 
     // Render final bloom result
     glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
     HDRBloomFinalShader.use();
     HDRBloomFinalShader.setFloat("exposure", exposure);
     HDRBloomFinalShader.setInt("tonemapStyle", tonemapStyle);
-    HDRBloomFinalShader.setFloat("bloomStrength", BLOOM_STRENGTH);
+    HDRBloomFinalShader.setFloat("bloomStrength", bloomStrength);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, hdrTex);
     glActiveTexture(GL_TEXTURE1);

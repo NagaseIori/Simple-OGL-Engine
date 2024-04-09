@@ -4,7 +4,7 @@ Parts of the code are inspired by the renowned tutorial [Learn OpenGL](https://l
 This project serves as a hands-on study material for my computer graphics course.
 
 ## Build
-To prepare for building this project, ensure to incorporate the latest versions of `assimp`, `glad`, `GLFW`, `glm`, and `KHR` libraries.
+To prepare for building this project, ensure to include the latest versions of `assimp`, `glad`, `GLFW` and `glm` libraries.
 
 The project is configured for Visual Studio 2022.
 

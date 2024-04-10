@@ -3,6 +3,14 @@ Parts of the code are inspired by the renowned tutorial [Learn OpenGL](https://l
 
 This project serves as a hands-on study material for my computer graphics course.
 
+## Features
+
+* Deferred Rendering
+* Basic light system with spotlights, point lights and directional lights
+* FXAA
+* Skybox
+* HDR Bloom
+
 ## Build
 To prepare for building this project, ensure to include the latest versions of `assimp`, `glad`, `GLFW` and `glm` libraries.
 

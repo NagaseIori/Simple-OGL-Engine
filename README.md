@@ -10,6 +10,7 @@ This project serves as a hands-on study material for my computer graphics course
 * FXAA
 * Skybox
 * HDR Bloom
+* [Genshin style tone mapping](https://www.bilibili.com/video/BV1vC4y1G7mK)
 
 ## Build
 To prepare for building this project, ensure to include the latest versions of `assimp`, `glad`, `GLFW` and `glm` libraries.
